@@ -1,35 +1,44 @@
-const Eris = require("eris");
-const bot = require("./bot");
-const moment = require("moment");
-const humanizeDuration = require("humanize-duration");
-const config = require("./cfg");
-const { BotError } = require("./BotError");
+import Eris, {
+  DMChannel,
+  GroupChannel,
+  GuildChannel,
+  ThreadChannel,
+} from "eris";
+import humanizeDuration from "humanize-duration";
+import moment, { type MomentInput } from "moment";
+import { publicIp } from "public-ip";
+import { BotError } from "./BotError";
+import bot from "./bot";
+import config from "./cfg";
+import type Thread from "./data/Thread";
 
 const userMentionRegex = /^<@!?([0-9]+?)>$/;
 
-let inboxGuild = null;
-let mainGuilds = [];
-let logChannel = null;
+let inboxGuild: Eris.Guild | undefined;
+let mainGuilds: Array<Eris.Guild> = [];
 
 /**
  * @returns {Eris~Guild}
  */
-function getInboxGuild() {
-  if (! inboxGuild) inboxGuild = bot.guilds.find(g => g.id === config.inboxServerId);
-  if (! inboxGuild) throw new BotError("The bot is not on the inbox server!");
+export function getInboxGuild(): Eris.Guild {
+  if (!inboxGuild)
+    inboxGuild = bot.guilds.find((g) => g.id === config.inboxServerId);
+  if (!inboxGuild) throw new BotError("The bot is not on the inbox server!");
   return inboxGuild;
 }
 
 /**
  * @returns {Eris~Guild[]}
  */
-function getMainGuilds() {
+export function getMainGuilds(): Array<Eris.Guild> {
   if (mainGuilds.length === 0) {
-    mainGuilds = bot.guilds.filter(g => config.mainServerId.includes(g.id));
+    mainGuilds = bot.guilds.filter((g) =>
+      (config.mainServerId || "").includes(g.id),
+    );
   }
 
-  if (mainGuilds.length !== config.mainServerId.length) {
-    if (config.mainServerId.length === 1) {
+  if (mainGuilds.length !== config.mainServerId?.length) {
+    if (config.mainServerId?.length === 1) {
       console.warn("[WARN] The bot hasn't joined the main guild!");
     } else {
       console.warn("[WARN] The bot hasn't joined one or more main guilds!");
@@ -43,29 +52,38 @@ function getMainGuilds() {
  * Returns the designated log channel, or the default channel if none is set
  * @returns {Eris~TextChannel}
  */
-function getLogChannel() {
+export function getLogChannel(): Eris.TextChannel {
   const _inboxGuild = getInboxGuild();
-  const _logChannel = _inboxGuild.channels.get(config.logChannelId);
+  const _logChannel = _inboxGuild.channels.get(config.logChannelId || "");
 
-  if (! _logChannel) {
+  if (!_logChannel) {
     throw new BotError("Log channel (logChannelId) not found!");
   }
 
-  if (! (_logChannel instanceof Eris.TextChannel)) {
-    throw new BotError("Make sure the logChannelId option is set to a text channel!");
+  if (!(_logChannel instanceof Eris.TextChannel)) {
+    throw new BotError(
+      "Make sure the logChannelId option is set to a text channel!",
+    );
   }
 
   return _logChannel;
 }
 
-function postLog(...args) {
-  return getLogChannel().createMessage(...args);
+export function postLog(
+  content: Eris.MessageContent,
+  file?: Eris.FileContent | Eris.FileContent[],
+) {
+  return getLogChannel().createMessage(content, file);
 }
 
-function postError(channel, str, opts = {}) {
+export function postError(
+  channel: Eris.TextChannel,
+  content: string,
+  opts = {},
+) {
   return channel.createMessage({
     ...opts,
-    content: `⚠ ${str}`
+    content: `! ${content}`,
   });
 }
 
@@ -74,19 +92,20 @@ function postError(channel, str, opts = {}) {
  * @param {Eris.Member} member
  * @returns {boolean}
  */
-function isStaff(member) {
-  if (! member) return false;
-  if (config.inboxServerPermission.length === 0) return true;
+export function isStaff(member: Eris.Member | null): boolean {
+  if (!member) return false;
+  if (config.inboxServerPermission?.length === 0) return true;
   if (member.guild.ownerID === member.id) return true;
 
-  return config.inboxServerPermission.some(perm => {
-    if (isSnowflake(perm)) {
+  return (config.inboxServerPermission || []).some((perm) => {
+    if (isSnowflake(perm as string)) {
       // If perm is a snowflake, check it against the member's user id and roles
       if (member.id === perm) return true;
-      if (member.roles.includes(perm)) return true;
+      if (member.roles.includes(perm as string)) return true;
     } else {
       // Otherwise assume perm is the name of a permission
-      return member.permissions.has(perm);
+      // TODO: properly type
+      return member.permissions.has(perm as any);
     }
 
     return false;
@@ -99,9 +118,15 @@ function isStaff(member) {
  * @param {Eris.Message} msg
  * @returns {Promise<boolean>}
  */
-async function messageIsOnInboxServer(client, msg) {
-  const channel = await getOrFetchChannel(client, msg.channel.id);
-  if (! channel.guild) return false;
+export async function messageIsOnInboxServer(
+  client: Eris.Client,
+  msg: Eris.Message,
+): Promise<boolean> {
+  const channel = (await getOrFetchChannel(
+    client,
+    msg.channel.id,
+  )) as Eris.TextChannel;
+  if (!channel || !channel.guild) return false;
   if (channel.guild.id !== getInboxGuild().id) return false;
   return true;
 }
@@ -112,12 +137,17 @@ async function messageIsOnInboxServer(client, msg) {
  * @param {Eris.Message} msg
  * @returns {Promise<boolean>}
  */
-async function messageIsOnMainServer(client, msg) {
-  const channel = await getOrFetchChannel(client, msg.channel.id);
-  if (! channel || ! channel.guild) return false;
+export async function messageIsOnMainServer(
+  client: Eris.Client,
+  msg: Eris.Message,
+): Promise<boolean> {
+  const channel = (await getOrFetchChannel(
+    client,
+    msg.channel.id,
+  )) as Eris.TextChannel | null;
+  if (!channel || !channel.guild) return false;
 
-  return getMainGuilds()
-    .some(g => channel.guild.id === g.id);
+  return getMainGuilds().some((g) => channel.guild.id === g.id);
 }
 
 /**
@@ -125,7 +155,10 @@ async function messageIsOnMainServer(client, msg) {
  * @param {string} attachmentUrl
  * @returns {Promise<string>}
  */
-async function formatAttachment(attachment, attachmentUrl) {
+export async function formatAttachment(
+  attachment: Eris.Attachment,
+  attachmentUrl: string,
+): Promise<string> {
   let filesize = attachment.size || 0;
   filesize /= 1024;
 
@@ -137,8 +170,8 @@ async function formatAttachment(attachment, attachmentUrl) {
  * @param {String} str
  * @returns {String|null}
  */
-function getUserMention(str) {
-  if (! str) return null;
+export function getUserMention(str: string): string | null {
+  if (!str) return null;
 
   str = str.trim();
 
@@ -146,8 +179,8 @@ function getUserMention(str) {
     // User ID
     return str;
   } else {
-    let mentionMatch = str.match(userMentionRegex);
-    if (mentionMatch) return mentionMatch[1];
+    const mentionMatch = str.match(userMentionRegex);
+    if (mentionMatch) return mentionMatch[1] || null;
   }
 
   return null;
@@ -158,8 +191,8 @@ function getUserMention(str) {
  * @param {...Parameters<typeof moment>>} momentArgs
  * @returns {String}
  */
-function getTimestamp(...momentArgs) {
-  return moment.utc(...momentArgs).format("HH:mm");
+export function getTimestamp(input: MomentInput, strict = false): string {
+  return moment.utc(input, strict).format("HH:mm");
 }
 
 /**
@@ -167,28 +200,28 @@ function getTimestamp(...momentArgs) {
  * @param {String} str
  * @returns {String}
  */
-function disableLinkPreviews(str) {
-  return str.replace(/(^|[^<])(https?:\/\/\S+)/ig, "$1<$2>");
+export function disableLinkPreviews(str: string): string {
+  return str.replace(/(^|[^<])(https?:\/\/\S+)/gi, "$1<$2>");
 }
 
 /** @var {Promise<string>|null} cachedIp */
-let cachedIpPromise = null;
+let cachedIpPromise: Promise<string> | null = null;
 
 /**
  * @returns {Promise<string>}
  */
-async function getSelfIp() {
-  if (! cachedIpPromise) {
-    // public-ip is ESM only, so we need to import it rather than require.
-    // dynamic import() works in cjs code.
-    const { publicIp } = await import("public-ip");
-    cachedIpPromise = publicIp({ timeout: 1000 })
-      .catch(err => {
-        console.warn(`Error while fetching public ip: ${err}`);
-        cachedIpPromise = null; // Retry later
-        return "UNKNOWN";
-      });
+export async function getSelfIp(): Promise<string> {
+  if (!cachedIpPromise) {
+    cachedIpPromise = publicIp({ timeout: 1000 }).catch((err) => {
+      console.warn(`Error while fetching public ip: ${err}`);
+      return "UNKNOWN";
+    });
   }
+
+  if (cachedIpPromise === null) {
+    return Promise.resolve("");
+  }
+
   return cachedIpPromise;
 }
 
@@ -197,7 +230,7 @@ async function getSelfIp() {
  * @param {String} path
  * @returns {Promise<String>}
  */
-async function getSelfUrl(path = "") {
+export async function getSelfUrl(path: string = ""): Promise<string> {
   if (config.url) {
     return `${config.url}/${path}`;
   } else {
@@ -212,20 +245,24 @@ async function getSelfUrl(path = "") {
  * @param {Eris~Member} member
  * @returns {Eris~Role}
  */
-function getMainRole(member) {
-  const roles = member.roles.map(id => member.guild.roles.get(id));
-  roles.sort((a, b) => a.position > b.position ? -1 : 1);
-  return roles.find(r => r.hoist);
+export function getMainRole(member: Eris.Member): Eris.Role {
+  const roles = member.roles.map((id) => member.guild.roles.get(id));
+  roles.sort((a: Eris.Role | undefined, b: Eris.Role | undefined) => {
+    if (a && b) {
+      return a.position > b.position ? -1 : 1;
+    }
+
+    return 0;
+  });
+
+  return roles.find((r) => r?.hoist) as Eris.Role;
 }
 
 /**
  * Splits array items into chunks of the specified size
- * @param {Array|String} items
- * @param {Number} chunkSize
- * @returns {Array}
  */
-function chunk(items, chunkSize) {
-  const result = [];
+export function chunk<T>(items: Array<T>, chunkSize: number): Array<Array<T>> {
+  const result: Array<Array<T>> = [];
 
   for (let i = 0; i < items.length; i += chunkSize) {
     result.push(items.slice(i, i + chunkSize));
@@ -239,54 +276,66 @@ function chunk(items, chunkSize) {
  * @param {String} str
  * @returns {String}
  */
-function trimAll(str) {
+export function trimAll(str: string): string {
   return str
     .split("\n")
-    .map(_str => _str.trim())
+    .map((_str) => _str.trim())
     .join("\n");
 }
-
-const delayStringRegex = /^([0-9]+)(?:([dhms])[a-z]*)?/i;
 
 /**
  * Turns a "delay string" such as "1h30m" to milliseconds
  * @param {String} str
  * @returns {Number|null}
  */
-function convertDelayStringToMS(str) {
-  let match;
-  let ms = 0;
+export function convertDelayStringToMS(str: string): number | null {
+  const regex = /(\d+)([smhdw])/g;
+  let totalMs = 0;
 
-  str = str.trim();
+  const units: Record<string, number> = {
+    s: 1000, // seconds
+    m: 60 * 1000, // minutes
+    h: 60 * 60 * 1000, // hours
+    d: 24 * 60 * 60 * 1000, // days
+    w: 7 * 24 * 60 * 60 * 1000, // weeks
+  };
 
-  while (str !== "" && (match = str.match(delayStringRegex)) !== null) {
-    if (match[2] === "d") ms += match[1] * 1000 * 60 * 60 * 24;
-    else if (match[2] === "h") ms += match[1] * 1000 * 60 * 60;
-    else if (match[2] === "s") ms += match[1] * 1000;
-    else if (match[2] === "m" || ! match[2]) ms += match[1] * 1000 * 60;
+  let match = regex.exec(str);
+  while (match !== null) {
+    if (match.length > 1) {
+      const value = parseInt(match[1] || "", 10);
+      const unit = match[2] || "";
 
-    str = str.slice(match[0].length);
+      if (units[unit]) {
+        totalMs += value * units[unit];
+      }
+    }
+
+    match = regex.exec(str);
   }
 
-  // Invalid delay string
-  if (str !== "") {
-    return null;
-  }
-
-  return ms;
+  // Return null if no valid time units were found
+  return totalMs > 0 ? totalMs : null;
 }
 
 /**
  * @param {string|string[]} mentionRoles
  * @returns {string[]}
  */
-function getValidMentionRoles(mentionRoles) {
-  if (! Array.isArray(mentionRoles)) {
+export function getValidMentionRoles(
+  mentionRoles: string | string[],
+): string[] {
+  if (!Array.isArray(mentionRoles)) {
     mentionRoles = [mentionRoles];
   }
 
-  return mentionRoles.filter(roleStr => {
-    return (roleStr !== null && roleStr !== "none" && roleStr !== "off" && roleStr !== "");
+  return mentionRoles.filter((roleStr) => {
+    return (
+      roleStr !== null &&
+      roleStr !== "none" &&
+      roleStr !== "off" &&
+      roleStr !== ""
+    );
   });
 }
 
@@ -294,21 +343,21 @@ function getValidMentionRoles(mentionRoles) {
  * @param {string[]} mentionRoles
  * @returns {string}
  */
-function mentionRolesToMention(mentionRoles) {
-  const mentions = [];
+export function mentionRolesToMention(mentionRoles: string[]): string {
+  const mentions: Array<string> = [];
   for (const role of mentionRoles) {
     if (role === "here") mentions.push("@here");
     else if (role === "everyone") mentions.push("@everyone");
     else mentions.push(`<@&${role}>`);
   }
-  return mentions.join(" ") + " ";
+  return `${mentions.join(" ")} `;
 }
 
 /**
  * @returns {string}
  */
-function getInboxMention() {
-  const mentionRoles = getValidMentionRoles(config.mentionRole);
+export function getInboxMention(): string {
+  const mentionRoles = getValidMentionRoles(config.mentionRole || []);
   return mentionRolesToMention(mentionRoles);
 }
 
@@ -316,10 +365,10 @@ function getInboxMention() {
  * @param {string[]} mentionRoles
  * @returns {object}
  */
-function mentionRolesToAllowedMentions(mentionRoles) {
+export function mentionRolesToAllowedMentions(mentionRoles: string[]): object {
   const allowedMentions = {
     everyone: false,
-    roles: [],
+    roles: [] as Array<string>,
   };
 
   for (const role of mentionRoles) {
@@ -333,12 +382,16 @@ function mentionRolesToAllowedMentions(mentionRoles) {
 /**
  * @returns {object}
  */
-function getInboxMentionAllowedMentions() {
-  const mentionRoles = getValidMentionRoles(config.mentionRole);
+export function getInboxMentionAllowedMentions(): object {
+  const mentionRoles = getValidMentionRoles(config.mentionRole || []);
   return mentionRolesToAllowedMentions(mentionRoles);
 }
 
-function postSystemMessageWithFallback(channel, thread, text) {
+export function postSystemMessageWithFallback(
+  channel: Eris.TextChannel,
+  thread: Thread,
+  text: string,
+) {
   if (thread) {
     thread.postSystemMessage(text);
   } else {
@@ -351,17 +404,21 @@ function postSystemMessageWithFallback(channel, thread, text) {
  * @param {Object} target
  * @param {Object} props
  */
-function setDataModelProps(target, props) {
+export function setDataModelProps<
+  T extends Record<string | number | symbol, unknown>,
+>(target: T, props: T) {
   for (const prop in props) {
-    if (! props.hasOwnProperty(prop)) continue;
+    if (!Object.hasOwn(props, prop)) continue;
     // DATETIME fields are always returned as Date objects in MySQL/MariaDB
     if (props[prop] instanceof Date) {
       // ...even when NULL, in which case the date's set to unix epoch
       if (props[prop].getUTCFullYear() === 1970) {
-        target[prop] = null;
+        target[prop] = null as T[Extract<keyof T, string>];
       } else {
         // Set the value as a string in the same format it's returned in SQLite
-        target[prop] = moment.utc(props[prop]).format("YYYY-MM-DD HH:mm:ss");
+        target[prop] = moment
+          .utc(props[prop])
+          .format("YYYY-MM-DD HH:mm:ss") as T[Extract<keyof T, string>];
       }
     } else {
       target[prop] = props[prop];
@@ -369,31 +426,31 @@ function setDataModelProps(target, props) {
   }
 }
 
-const snowflakeRegex = /^[0-9]{17,}$/;
-function isSnowflake(str) {
-  return str && snowflakeRegex.test(str);
+export function isSnowflake(str: string) {
+  return /^[0-9]{17,}$/.test(str);
 }
 
-const humanizeDelay = (delay, opts = {}) => humanizeDuration(delay, Object.assign({conjunction: " and "}, opts));
+export const humanizeDelay = (delay: number, opts = {}) =>
+  humanizeDuration(delay, Object.assign({ conjunction: " and " }, opts));
 
-const markdownCharsRegex = /([\\_*|`~])/g;
-function escapeMarkdown(str) {
-  return str.replace(markdownCharsRegex, "\\$1");
+export function escapeMarkdown(str: string) {
+  return str.replace(/([\\_*|`~])/g, "\\$1");
 }
 
-function disableInlineCode(str) {
+export function disableInlineCode(str: string) {
   return str.replace(/`/g, "'");
 }
 
-function disableCodeBlocks(str) {
+export function disableCodeBlocks(str: string) {
   return str.replace(/`/g, "`\u200b");
 }
 
-function readMultilineConfigValue(str) {
+export function readMultilineConfigValue(str: Array<string> | string) {
   return Array.isArray(str) ? str.join("\n") : str;
 }
 
-function noop() {}
+// ()‘ ‘•)
+export function noop() {}
 
 // https://discord.com/developers/docs/resources/channel#create-message-params
 const MAX_MESSAGE_CONTENT_LENGTH = 2000;
@@ -409,7 +466,9 @@ const MAX_EMBED_CONTENT_LENGTH = 6000;
  *
  * @param {string|Eris.MessageContent} content
  */
-function messageContentIsWithinMaxLength(content) {
+export function messageContentIsWithinMaxLength(
+  content: string | Eris.MessageContent,
+) {
   if (typeof content === "string") {
     content = { content };
   }
@@ -418,27 +477,30 @@ function messageContentIsWithinMaxLength(content) {
     return false;
   }
 
-  if (content.embed) {
-    let embedContentLength = 0;
+  if (content.embeds) {
+    for (const embed of content.embeds) {
+      let embedContentLength = 0;
 
-    if (content.embed.title) embedContentLength += content.embed.title.length;
-    if (content.embed.description) embedContentLength += content.embed.description.length;
-    if (content.embed.footer && content.embed.footer.text) {
-      embedContentLength += content.embed.footer.text.length;
-    }
-    if (content.embed.author && content.embed.author.name) {
-      embedContentLength += content.embed.author.name.length;
-    }
-
-    if (content.embed.fields) {
-      for (const field of content.embed.fields) {
-        if (field.title) embedContentLength += field.name.length;
-        if (field.description) embedContentLength += field.value.length;
+      if (embed.title) embedContentLength += embed.title.length;
+      if (embed.description) embedContentLength += embed.description.length;
+      if (embed.footer?.text) {
+        embedContentLength += embed.footer.text.length;
       }
-    }
+      if (embed.author?.name) {
+        embedContentLength += embed.author.name.length;
+      }
 
-    if (embedContentLength > MAX_EMBED_CONTENT_LENGTH) {
-      return false;
+      if (embed.fields) {
+        for (const field of embed.fields) {
+          if (field.name === "title") embedContentLength += field.name.length;
+          if (field.name === "description")
+            embedContentLength += field.value.length;
+        }
+      }
+
+      if (embedContentLength > MAX_EMBED_CONTENT_LENGTH) {
+        return false;
+      }
     }
   }
 
@@ -451,7 +513,10 @@ function messageContentIsWithinMaxLength(content) {
  * @param {number} [maxChunkLength=2000]
  * @returns {string[]}
  */
-function chunkByLines(str, maxChunkLength = 2000) {
+export function chunkByLines(
+  str: string,
+  maxChunkLength: number = 2000,
+): string[] {
   if (str.length < maxChunkLength) {
     return [str];
   }
@@ -485,15 +550,15 @@ function chunkByLines(str, maxChunkLength = 2000) {
  * Default maxChunkLength is 1990, a bit under the message length limit of 2000, so we have space to add code block
  * shenanigans to the start/end when needed. Take this into account when choosing a custom maxChunkLength as well.
  */
-function chunkMessageLines(str, maxChunkLength = 1990) {
+export function chunkMessageLines(str: string, maxChunkLength = 1990) {
   const chunks = chunkByLines(str, maxChunkLength);
   let openCodeBlock = false;
 
-  return chunks.map(_chunk => {
+  return chunks.map((_chunk) => {
     // If the chunk starts with a newline, add an invisible unicode char so Discord doesn't strip it away
-    if (_chunk[0] === "\n") _chunk = "\u200b" + _chunk;
+    if (_chunk[0] === "\n") _chunk = `\u200b${_chunk}`;
     // If the chunk ends with a newline, add an invisible unicode char so Discord doesn't strip it away
-    if (_chunk[_chunk.length - 1] === "\n") _chunk = _chunk + "\u200b";
+    if (_chunk[_chunk.length - 1] === "\n") _chunk = `${_chunk}\u200b`;
     // If the previous chunk had an open code block, open it here again
     if (openCodeBlock) {
       openCodeBlock = false;
@@ -502,7 +567,7 @@ function chunkMessageLines(str, maxChunkLength = 1990) {
         // Fix: just strip the code block delimiter away from here, we don't need it anymore
         _chunk = _chunk.slice(3);
       } else {
-        _chunk = "```" + _chunk;
+        _chunk = `\`\`\`${_chunk}`;
       }
     }
     // If the chunk has an open code block, close it and open it again in the next chunk
@@ -519,37 +584,44 @@ function chunkMessageLines(str, maxChunkLength = 1990) {
 /**
  * @type {Record<string, Promise<Eris.AnyChannel | null>>}
  */
-const fetchChannelPromises = {};
+const fetchChannelPromises: Record<
+  string,
+  Promise<Eris.AnyChannel | null>
+> = {};
 
 /**
  * @param {Eris.Client} client
  * @param {string} channelId
  * @returns {Promise<Eris.AnyChannel | null>}
  */
-async function getOrFetchChannel(client, channelId) {
+export async function getOrFetchChannel(
+  client: Eris.Client,
+  channelId: string,
+): Promise<Eris.AnyChannel | null> {
   const cachedChannel = client.getChannel(channelId);
   if (cachedChannel) {
     return cachedChannel;
   }
 
-  if (! fetchChannelPromises[channelId]) {
+  if (!fetchChannelPromises[channelId]) {
     fetchChannelPromises[channelId] = (async () => {
-      const channel = client.getRESTChannel(channelId);
-      if (! channel) {
+      const channel = await client.getRESTChannel(channelId);
+      if (!channel) {
         return null;
       }
 
       // Cache the result
-      if (channel instanceof Eris.ThreadChannel) {
+      if (channel instanceof ThreadChannel) {
         channel.guild.threads.add(channel);
         client.threadGuildMap[channel.id] = channel.guild.id;
-      } else if (channel instanceof Eris.GuildChannel) {
+      } else if (channel instanceof GuildChannel) {
         channel.guild.channels.add(channel);
         client.channelGuildMap[channel.id] = channel.guild.id;
-      } else if (channel instanceof Eris.PrivateChannel) {
-        client.privateChannels.add(channel);
-      } else if (channel instanceof Eris.GroupChannel) {
-        client.groupChannels.add(channel);
+      } else if (channel instanceof DMChannel) {
+        client.dmChannels.add(channel);
+      } else if (channel instanceof GroupChannel) {
+        // TODO: Check if this is even necessary.
+        //        client.groupChannels.add(channel);
       }
 
       return channel;
@@ -564,66 +636,11 @@ async function getOrFetchChannel(client, channelId) {
  * @param {Eris.MessageContent} content
  * @returns {Eris.AdvancedMessageContent}
  */
-function messageContentToAdvancedMessageContent(content) {
+export function messageContentToAdvancedMessageContent(
+  content: Eris.MessageContent,
+): Eris.AdvancedMessageContent {
   return typeof content === "string" ? { content } : content;
 }
 
-const START_CODEBLOCK = "```";
-const END_CODEBLOCK = "```";
-
-module.exports = {
-  getInboxGuild,
-  getMainGuilds,
-  getLogChannel,
-  postError,
-  postLog,
-
-  isStaff,
-  messageIsOnInboxServer,
-  messageIsOnMainServer,
-
-  formatAttachment,
-
-  getUserMention,
-  getTimestamp,
-  disableLinkPreviews,
-  getSelfUrl,
-  getMainRole,
-  delayStringRegex,
-  convertDelayStringToMS,
-
-  getValidMentionRoles,
-  mentionRolesToMention,
-  getInboxMention,
-  mentionRolesToAllowedMentions,
-  getInboxMentionAllowedMentions,
-
-  postSystemMessageWithFallback,
-
-  chunk,
-  trimAll,
-
-  setDataModelProps,
-
-  isSnowflake,
-
-  humanizeDelay,
-
-  escapeMarkdown,
-  disableInlineCode,
-  disableCodeBlocks,
-
-  readMultilineConfigValue,
-
-  messageContentIsWithinMaxLength,
-  chunkMessageLines,
-
-  messageContentToAdvancedMessageContent,
-
-  getOrFetchChannel,
-
-  noop,
-
-  START_CODEBLOCK,
-  END_CODEBLOCK,
-};
+export const START_CODEBLOCK = "```";
+export const END_CODEBLOCK = "```";

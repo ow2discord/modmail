@@ -1,22 +1,47 @@
-const {User, Member, Message} = require("eris");
+import { createHash } from "node:crypto";
+import { User } from "eris";
+import humanizeDuration from "humanize-duration";
+import moment, { utc } from "moment";
+import { slugify } from "transliteration";
+import { v4 } from "uuid";
+import bot from "../bot";
+import cfg from "../cfg";
+import { callBeforeNewThreadHooks } from "../hooks/beforeNewThread";
+import knex from "../knex";
+import {
+  escapeMarkdown,
+  getInboxGuild,
+  getInboxMention,
+  getInboxMentionAllowedMentions,
+  getMainGuilds,
+  getValidMentionRoles,
+  mentionRolesToAllowedMentions,
+  mentionRolesToMention,
+  readMultilineConfigValue,
+} from "../utils";
+import { DISCORD_CHANNEL_TYPES, THREAD_STATUS } from "./constants";
+import { findNotesByUserId } from "./notes";
+import Thread from "./Thread";
+import ThreadMessage from "./ThreadMessage";
+import { getAvailableUpdate } from "./updates";
 
-const transliterate = require("transliteration");
-const moment = require("moment");
-const uuid = require("uuid");
-const humanizeDuration = require("humanize-duration");
-const crypto = require("crypto");
+const { getRESTGuildMember } = bot;
+const { raw } = knex;
 
-const bot = require("../bot");
-const knex = require("../knex");
-const config = require("../cfg");
-const utils = require("../utils");
-const updates = require("./updates");
-
-const Thread = require("./Thread");
-const ThreadMessage = require("./ThreadMessage");
-const {callBeforeNewThreadHooks} = require("../hooks/beforeNewThread");
-const {THREAD_STATUS, DISCORD_CHANNEL_TYPES} = require("./constants");
-const {findNotesByUserId} = require("./notes");
+const {
+  useDisplaynames,
+  requiredAccountAge,
+  accountAgeDeniedMessage: _accountAgeDeniedMessage,
+  requiredTimeOnServer,
+  timeOnServerDeniedMessage: _timeOnServerDeniedMessage,
+  anonymizeChannelName,
+  categoryAutomation,
+  mentionUserInThreadHeader,
+  rolesInThreadHeader,
+  prefix,
+  pinThreadHeader,
+  updateNotifications,
+} = cfg;
 
 const MINUTES = 60 * 1000;
 const HOURS = 60 * MINUTES;
@@ -24,11 +49,9 @@ const HOURS = 60 * MINUTES;
 let threadCreationQueue = Promise.resolve();
 
 function _addToThreadCreationQueue(fn) {
-  threadCreationQueue = threadCreationQueue
-    .then(fn)
-    .catch(err => {
-      console.error(`Error while creating thread: ${err.message}`);
-    });
+  threadCreationQueue = threadCreationQueue.then(fn).catch((err) => {
+    console.error(`Error while creating thread: ${err.message}\n${err}`);
+  });
 
   return threadCreationQueue;
 }
@@ -38,11 +61,9 @@ function _addToThreadCreationQueue(fn) {
  * @returns {Promise<Thread>}
  */
 async function findById(id) {
-  const thread = await knex("threads")
-    .where("id", id)
-    .first();
+  const thread = await knex("threads").where("id", id).first();
 
-  return (thread ? new Thread(thread) : null);
+  return thread ? new Thread(thread) : null;
 }
 
 /**
@@ -54,7 +75,7 @@ async function findByThreadNumber(threadNumber) {
     .where("thread_number", threadNumber)
     .first();
 
-  return (thread ? new Thread(thread) : null);
+  return thread ? new Thread(thread) : null;
 }
 
 /**
@@ -67,13 +88,19 @@ async function findOpenThreadByUserId(userId) {
     .where("status", THREAD_STATUS.OPEN)
     .first();
 
-  return (thread ? new Thread(thread) : null);
+  return thread ? new Thread(thread) : null;
 }
 
 function getHeaderGuildInfo(member) {
   return {
-    nickname: member.nick || config.useDisplaynames ? member.user.globalName || member.user.username : member.user.username,
-    joinDate: humanizeDuration(Date.now() - member.joinedAt, {largest: 2, round: true})
+    nickname:
+      member.nick || useDisplaynames
+        ? member.user.globalName || member.user.username
+        : member.user.username,
+    joinDate: humanizeDuration(Date.now() - member.joinedAt, {
+      largest: 2,
+      round: true,
+    }),
   };
 }
 
@@ -98,20 +125,25 @@ function getHeaderGuildInfo(member) {
 async function createNewThreadForUser(user, opts = {}) {
   return _addToThreadCreationQueue(async () => {
     const quiet = opts.quiet != null ? opts.quiet : false;
-    const ignoreRequirements = opts.ignoreRequirements != null ? opts.ignoreRequirements : false;
+    const ignoreRequirements =
+      opts.ignoreRequirements != null ? opts.ignoreRequirements : false;
     const ignoreHooks = opts.ignoreHooks != null ? opts.ignoreHooks : false;
 
     const existingThread = await findOpenThreadByUserId(user.id);
     if (existingThread) {
-      throw new Error("Attempted to create a new thread for a user with an existing open thread!");
+      throw new Error(
+        "Attempted to create a new thread for a user with an existing open thread!",
+      );
     }
 
     // If set in config, check that the user's account is old enough (time since they registered on Discord)
     // If the account is too new, don't start a new thread and optionally reply to them with a message
-    if (config.requiredAccountAge && ! ignoreRequirements) {
-      if (user.createdAt > moment() - config.requiredAccountAge * HOURS){
-        if (config.accountAgeDeniedMessage) {
-          const accountAgeDeniedMessage = utils.readMultilineConfigValue(config.accountAgeDeniedMessage);
+    if (requiredAccountAge && !ignoreRequirements) {
+      if (user.createdAt > moment() - requiredAccountAge * HOURS) {
+        if (_accountAgeDeniedMessage) {
+          const accountAgeDeniedMessage = readMultilineConfigValue(
+            _accountAgeDeniedMessage,
+          );
           const privateChannel = await user.getDMChannel();
           await privateChannel.createMessage(accountAgeDeniedMessage);
         }
@@ -120,16 +152,16 @@ async function createNewThreadForUser(user, opts = {}) {
     }
 
     // Find which main guilds this user is part of
-    const mainGuilds = utils.getMainGuilds();
+    const mainGuilds = getMainGuilds();
     const userGuildData = new Map();
 
     for (const guild of mainGuilds) {
       let member = guild.members.get(user.id);
 
-      if (! member) {
+      if (!member) {
         try {
-          member = await bot.getRESTGuildMember(guild.id, user.id);
-        } catch (e) {
+          member = await getRESTGuildMember(guild.id, user.id);
+        } catch (_e) {
           continue;
         }
       }
@@ -141,16 +173,20 @@ async function createNewThreadForUser(user, opts = {}) {
 
     // If set in config, check that the user has been a member of one of the main guilds long enough
     // If they haven't, don't start a new thread and optionally reply to them with a message
-    if (config.requiredTimeOnServer && ! ignoreRequirements) {
+    if (requiredTimeOnServer && !ignoreRequirements) {
       // Check if the user joined any of the main servers a long enough time ago
       // If we don't see this user on any of the main guilds (the size check below), assume we're just missing some data and give the user the benefit of the doubt
-      const isAllowed = userGuildData.size === 0 || Array.from(userGuildData.values()).some(({guild, member}) => {
-        return member.joinedAt < moment() - config.requiredTimeOnServer * MINUTES;
-      });
+      const isAllowed =
+        userGuildData.size === 0 ||
+        Array.from(userGuildData.values()).some(({ _guild, member }) => {
+          return member.joinedAt < moment() - requiredTimeOnServer * MINUTES;
+        });
 
-      if (! isAllowed) {
-        if (config.timeOnServerDeniedMessage) {
-          const timeOnServerDeniedMessage = utils.readMultilineConfigValue(config.timeOnServerDeniedMessage);
+      if (!isAllowed) {
+        if (_timeOnServerDeniedMessage) {
+          const timeOnServerDeniedMessage = readMultilineConfigValue(
+            _timeOnServerDeniedMessage,
+          );
           const privateChannel = await user.getDMChannel();
           await privateChannel.createMessage(timeOnServerDeniedMessage);
         }
@@ -160,24 +196,27 @@ async function createNewThreadForUser(user, opts = {}) {
 
     // Use the user's name for the thread channel's name
     // Channel names are particularly picky about what characters they allow, so we gotta do some clean-up
-    let cleanName = transliterate.slugify(user.username);
+    let cleanName = slugify(user.username);
     if (cleanName === "") cleanName = "unknown";
 
     let channelName = cleanName;
 
-    if (config.anonymizeChannelName) {
-      channelName = crypto.createHash("md5").update(channelName + Date.now()).digest("hex").slice(0, 12);
+    if (anonymizeChannelName) {
+      channelName = createHash("md5")
+        .update(channelName + Date.now())
+        .digest("hex")
+        .slice(0, 12);
     }
 
     opts.channelName = channelName;
 
     let hookResult;
-    if (! ignoreHooks) {
+    if (!ignoreHooks) {
       // Call any registered beforeNewThreadHooks
       hookResult = await callBeforeNewThreadHooks({
         user,
         opts,
-        message: opts.message
+        message: opts.message,
       });
       if (hookResult.cancelled) return;
     }
@@ -185,11 +224,13 @@ async function createNewThreadForUser(user, opts = {}) {
     console.log(`[NOTE] Creating new thread channel ${opts.channelName}`);
 
     // Figure out which category we should place the thread channel in
-    let newThreadCategoryId = (hookResult && hookResult.categoryId) || opts.categoryId || null;
+    let newThreadCategoryId = hookResult?.categoryId || opts.categoryId || null;
 
-    if (! newThreadCategoryId && config.categoryAutomation.newThreadFromServer) {
+    if (!newThreadCategoryId && categoryAutomation.newThreadFromServer) {
       // Categories for specific source guilds (in case of multiple main guilds)
-      for (const [guildId, categoryId] of Object.entries(config.categoryAutomation.newThreadFromServer)) {
+      for (const [guildId, categoryId] of Object.entries(
+        categoryAutomation.newThreadFromServer,
+      )) {
         if (userGuildData.has(guildId)) {
           newThreadCategoryId = categoryId;
           break;
@@ -197,33 +238,41 @@ async function createNewThreadForUser(user, opts = {}) {
       }
     }
 
-    if (! newThreadCategoryId && config.categoryAutomation.newThread) {
+    if (!newThreadCategoryId && categoryAutomation.newThread) {
       // Blanket category id for all new threads (also functions as a fallback for the above)
-      newThreadCategoryId = config.categoryAutomation.newThread;
+      newThreadCategoryId = categoryAutomation.newThread;
     }
 
     // Attempt to create the inbox channel for this thread
     let createdChannel;
     try {
-      createdChannel = await utils.getInboxGuild().createChannel(opts.channelName, DISCORD_CHANNEL_TYPES.GUILD_TEXT, {
-        reason: "New Modmail thread",
-        parentID: newThreadCategoryId,
-      });
+      createdChannel = await getInboxGuild().createChannel(
+        opts.channelName,
+        DISCORD_CHANNEL_TYPES.GUILD_TEXT,
+        {
+          reason: "New Modmail thread",
+          parentID: newThreadCategoryId,
+        },
+      );
     } catch (err) {
       // Fix for disallowed channel names in servers in Server Discovery
-      if (err.message.includes("Contains words not allowed for servers in Server Discovery")) {
+      if (
+        err.message.includes(
+          "Contains words not allowed for servers in Server Discovery",
+        )
+      ) {
         const replacedChannelName = "badname-0000";
-        try {
-          createdChannel = await utils.getInboxGuild().createChannel(replacedChannelName, DISCORD_CHANNEL_TYPES.GUILD_TEXT, {
+        createdChannel = await getInboxGuild().createChannel(
+          replacedChannelName,
+          DISCORD_CHANNEL_TYPES.GUILD_TEXT,
+          {
             reason: "New Modmail thread",
             parentID: newThreadCategoryId,
-          });
-        } catch (_err) {
-          throw _err;
-        }
+          },
+        );
       }
 
-      if (! createdChannel || ! createdChannel.id) {
+      if (!createdChannel || !createdChannel.id) {
         throw err;
       }
     }
@@ -235,21 +284,23 @@ async function createNewThreadForUser(user, opts = {}) {
       user_name: user.username,
       channel_id: createdChannel.id,
       next_message_number: 1,
-      created_at: moment.utc().format("YYYY-MM-DD HH:mm:ss")
+      created_at: utc().format("YYYY-MM-DD HH:mm:ss"),
     });
 
     const newThread = await findById(newThreadId);
 
-    if (! quiet) {
+    if (!quiet) {
       // Ping moderators of the new thread
       const staffMention = opts.mentionRole
-        ? utils.mentionRolesToMention(utils.getValidMentionRoles(opts.mentionRole))
-        : utils.getInboxMention();
+        ? mentionRolesToMention(getValidMentionRoles(opts.mentionRole))
+        : getInboxMention();
 
       if (staffMention.trim() !== "") {
         const allowedMentions = opts.mentionRole
-          ? utils.mentionRolesToAllowedMentions(utils.getValidMentionRoles(opts.mentionRole))
-          : utils.getInboxMentionAllowedMentions();
+          ? mentionRolesToAllowedMentions(
+              getValidMentionRoles(opts.mentionRole),
+            )
+          : getInboxMentionAllowedMentions();
 
         await newThread.postNonLogMessage({
           content: `${staffMention}New modmail thread (${newThread.user_name})`,
@@ -262,11 +313,14 @@ async function createNewThreadForUser(user, opts = {}) {
     const infoHeaderItems = [];
 
     // Account age
-    const accountAge = humanizeDuration(Date.now() - user.createdAt, {largest: 2, round: true});
+    const accountAge = humanizeDuration(Date.now() - user.createdAt, {
+      largest: 2,
+      round: true,
+    });
     infoHeaderItems.push(`ACCOUNT AGE **${accountAge}**`);
 
     // User id (and mention, if enabled)
-    if (config.mentionUserInThreadHeader) {
+    if (mentionUserInThreadHeader) {
       infoHeaderItems.push(`ID **${user.id}** (<@!${user.id}>)`);
     } else {
       infoHeaderItems.push(`ID **${user.id}**`);
@@ -275,23 +329,29 @@ async function createNewThreadForUser(user, opts = {}) {
     let infoHeader = infoHeaderItems.join(", ");
 
     // Guild member info
-    for (const [guildId, guildData] of userGuildData.entries()) {
-      const {nickname, joinDate} = getHeaderGuildInfo(guildData.member);
+    for (const [_guildId, guildData] of userGuildData.entries()) {
+      const { nickname, joinDate } = getHeaderGuildInfo(guildData.member);
       const headerItems = [
-        `NICKNAME **${utils.escapeMarkdown(nickname)}**`,
-        `JOINED **${joinDate}** ago`
+        `NICKNAME **${escapeMarkdown(nickname)}**`,
+        `JOINED **${joinDate}** ago`,
       ];
 
       if (guildData.member.voiceState.channelID) {
-        const voiceChannel = guildData.guild.channels.get(guildData.member.voiceState.channelID);
+        const voiceChannel = guildData.guild.channels.get(
+          guildData.member.voiceState.channelID,
+        );
         if (voiceChannel) {
-          headerItems.push(`VOICE CHANNEL **${utils.escapeMarkdown(voiceChannel.name)}**`);
+          headerItems.push(
+            `VOICE CHANNEL **${escapeMarkdown(voiceChannel.name)}**`,
+          );
         }
       }
 
-      if (config.rolesInThreadHeader && guildData.member.roles.length) {
-        const roles = guildData.member.roles.map(roleId => guildData.guild.roles.get(roleId)).filter(Boolean);
-        headerItems.push(`ROLES **${roles.map(r => r.name).join(", ")}**`);
+      if (rolesInThreadHeader && guildData.member.roles.length) {
+        const roles = guildData.member.roles
+          .map((roleId) => guildData.guild.roles.get(roleId))
+          .filter(Boolean);
+        headerItems.push(`ROLES **${roles.map((r) => r.name).join(", ")}**`);
       }
 
       const headerStr = headerItems.join(", ");
@@ -299,35 +359,42 @@ async function createNewThreadForUser(user, opts = {}) {
       if (mainGuilds.length === 1) {
         infoHeader += `\n${headerStr}`;
       } else {
-        infoHeader += `\n**[${utils.escapeMarkdown(guildData.guild.name)}]** ${headerStr}`;
+        infoHeader += `\n**[${escapeMarkdown(guildData.guild.name)}]** ${headerStr}`;
       }
     }
 
     // Modmail history / previous logs
     const userLogCount = await getClosedThreadCountByUserId(user.id);
     if (userLogCount > 0) {
-      infoHeader += `\n\nThis user has **${userLogCount}** previous modmail threads. Use \`${config.prefix}logs\` to see them.`;
+      infoHeader += `\n\nThis user has **${userLogCount}** previous modmail threads. Use \`${prefix}logs\` to see them.`;
     }
 
     const userNotes = await findNotesByUserId(user.id);
     if (userNotes.length) {
-      infoHeader += `\n\nThis user has **${userNotes.length}** notes. Use \`${config.prefix}notes\` to see them.`;
+      infoHeader += `\n\nThis user has **${userNotes.length}** notes. Use \`${prefix}notes\` to see them.`;
     }
 
     infoHeader += "\n────────────────";
 
-    const { message: threadHeaderMessage } = await newThread.postSystemMessage(infoHeader, {
-      allowedMentions: config.mentionUserInThreadHeader ? { users: [user.id] } : undefined,
-    });
+    const { message: threadHeaderMessage } = await newThread.postSystemMessage(
+      infoHeader,
+      {
+        allowedMentions: mentionUserInThreadHeader
+          ? { users: [user.id] }
+          : undefined,
+      },
+    );
 
-    if (config.pinThreadHeader) {
+    if (pinThreadHeader) {
       await threadHeaderMessage.pin();
     }
 
-    if (config.updateNotifications) {
-      const availableUpdate = await updates.getAvailableUpdate();
+    if (updateNotifications) {
+      const availableUpdate = await getAvailableUpdate();
       if (availableUpdate) {
-        await newThread.postNonLogMessage(`📣 New bot version available (${availableUpdate})`);
+        await newThread.postNonLogMessage(
+          `📣 New bot version available (${availableUpdate})`,
+        );
       }
     }
 
@@ -342,17 +409,18 @@ async function createNewThreadForUser(user, opts = {}) {
  * @returns {Promise<String>} The ID of the created thread
  */
 async function createThreadInDB(data) {
-  const threadId = uuid.v4();
-  const now = moment.utc().format("YYYY-MM-DD HH:mm:ss");
+  const threadId = v4();
+  const now = utc().format("YYYY-MM-DD HH:mm:ss");
   const latestThreadNumberRow = await knex("threads")
     .orderBy("thread_number", "DESC")
     .first();
-  const latestThreadNumber = latestThreadNumberRow ? latestThreadNumberRow.thread_number : 0;
-  const finalData = Object.assign(
-    {created_at: now, is_legacy: 0},
-    data,
-    {id: threadId, thread_number: latestThreadNumber + 1}
-  );
+  const latestThreadNumber = latestThreadNumberRow
+    ? latestThreadNumberRow.thread_number
+    : 0;
+  const finalData = Object.assign({ created_at: now, is_legacy: 0 }, data, {
+    id: threadId,
+    thread_number: latestThreadNumber + 1,
+  });
 
   await knex("threads").insert(finalData);
 
@@ -364,11 +432,9 @@ async function createThreadInDB(data) {
  * @returns {Promise<Thread>}
  */
 async function findByChannelId(channelId) {
-  const thread = await knex("threads")
-    .where("channel_id", channelId)
-    .first();
+  const thread = await knex("threads").where("channel_id", channelId).first();
 
-  return (thread ? new Thread(thread) : null);
+  return thread ? new Thread(thread) : null;
 }
 
 /**
@@ -381,7 +447,7 @@ async function findOpenThreadByChannelId(channelId) {
     .where("status", THREAD_STATUS.OPEN)
     .first();
 
-  return (thread ? new Thread(thread) : null);
+  return thread ? new Thread(thread) : null;
 }
 
 /**
@@ -394,7 +460,7 @@ async function findSuspendedThreadByChannelId(channelId) {
     .where("status", THREAD_STATUS.SUSPENDED)
     .first();
 
-  return (thread ? new Thread(thread) : null);
+  return thread ? new Thread(thread) : null;
 }
 
 /**
@@ -407,7 +473,7 @@ async function getClosedThreadsByUserId(userId) {
     .where("user_id", userId)
     .select();
 
-  return threads.map(thread => new Thread(thread));
+  return threads.map((thread) => new Thread(thread));
 }
 
 /**
@@ -418,7 +484,7 @@ async function getClosedThreadCountByUserId(userId) {
   const row = await knex("threads")
     .where("status", THREAD_STATUS.CLOSED)
     .where("user_id", userId)
-    .first(knex.raw("COUNT(id) AS thread_count"));
+    .first(raw("COUNT(id) AS thread_count"));
 
   return parseInt(row.thread_count, 10);
 }
@@ -436,7 +502,7 @@ async function findOrCreateThreadForUser(user, opts = {}) {
 }
 
 async function getThreadsThatShouldBeClosed() {
-  const now = moment.utc().format("YYYY-MM-DD HH:mm:ss");
+  const now = utc().format("YYYY-MM-DD HH:mm:ss");
   const threads = await knex("threads")
     .where("status", THREAD_STATUS.OPEN)
     .whereNotNull("scheduled_close_at")
@@ -444,11 +510,11 @@ async function getThreadsThatShouldBeClosed() {
     .whereNotNull("scheduled_close_at")
     .select();
 
-  return threads.map(thread => new Thread(thread));
+  return threads.map((thread) => new Thread(thread));
 }
 
 async function getThreadsThatShouldBeSuspended() {
-  const now = moment.utc().format("YYYY-MM-DD HH:mm:ss");
+  const now = utc().format("YYYY-MM-DD HH:mm:ss");
   const threads = await knex("threads")
     .where("status", THREAD_STATUS.OPEN)
     .whereNotNull("scheduled_suspend_at")
@@ -456,7 +522,7 @@ async function getThreadsThatShouldBeSuspended() {
     .whereNotNull("scheduled_suspend_at")
     .select();
 
-  return threads.map(thread => new Thread(thread));
+  return threads.map((thread) => new Thread(thread));
 }
 
 /**
@@ -464,10 +530,10 @@ async function getThreadsThatShouldBeSuspended() {
  */
 async function getAllOpenThreads() {
   const threads = await knex("threads")
-  .where("status", THREAD_STATUS.OPEN)
-  .select();
+    .where("status", THREAD_STATUS.OPEN)
+    .select();
 
-  return threads.map(thread => new Thread(thread));
+  return threads.map((thread) => new Thread(thread));
 }
 
 /**
@@ -479,10 +545,10 @@ async function findThreadMessageByDMMessageId(dmMessageId) {
     .where("dm_message_id", dmMessageId)
     .first();
 
-  return (data ? new ThreadMessage(data) : null);
+  return data ? new ThreadMessage(data) : null;
 }
 
-module.exports = {
+export default {
   findById,
   findByThreadNumber,
   findOpenThreadByUserId,

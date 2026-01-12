@@ -1,9 +1,9 @@
-const express = require("express");
+const _express = require("express");
 const { CommandManager } = require("knub-command-manager");
 const { Client } = require("eris");
-const Knex = require("knex");
-const threads = require("./data/threads");
-const displayRoles = require("./data/displayRoles");
+const _Knex = require("knex");
+const _threads = require("./data/threads").default;
+const _displayRoles = require("./data/displayRoles");
 
 /**
  * @typedef {object} PluginAPI

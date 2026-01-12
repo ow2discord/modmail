@@ -1,11 +1,11 @@
-exports.up = async function (knex, Promise) {
-  await knex.schema.table("snippets", table => {
-    table.dropColumn("is_anonymous");
-  });
+exports.up = async (knex, _Promise) => {
+	await knex.schema.table("snippets", (table) => {
+		table.dropColumn("is_anonymous");
+	});
 };
 
-exports.down = async function(knex, Promise) {
-  await knex.schema.table("snippets", table => {
-    table.integer("is_anonymous").unsigned().notNullable();
-  });
+exports.down = async (knex, _Promise) => {
+	await knex.schema.table("snippets", (table) => {
+		table.integer("is_anonymous").unsigned().notNullable();
+	});
 };
