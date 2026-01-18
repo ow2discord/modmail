@@ -4,10 +4,11 @@ import { BotError } from "./BotError";
 import { getPrettyVersion } from "./botVersion";
 import knex from "./knex";
 import { PluginInstallationError } from "./PluginInstallationError";
-import main from "./main";
+import bot from "./bot";
 import { serve } from "bun";
 import web from "./web";
 import cfg from "./cfg";
+import { start } from "./main";
 
 const bunVersion = process.versions.bun.split(".").map(parseInt) as [
   number,
@@ -50,50 +51,48 @@ function errorHandler(err: Error & { code?: string }) {
     return;
   }
 
-  if (err) {
-    if (typeof err === "string") {
-      console.error(`Error: ${err}`);
-    } else if (err instanceof BotError) {
-      // Leave out stack traces for BotErrors (the message has enough info)
-      console.error(`Error: ${err.message}`);
-    } else if (err.message === "Disallowed intents specified") {
-      let fullMessage = "Error: Disallowed intents specified";
-      fullMessage += "\n\n";
-      fullMessage +=
-        "To run the bot, you must enable 'Server Members Intent' on your bot's page in the Discord Developer Portal:";
-      fullMessage += "\n\n";
-      fullMessage += "1. Go to https://discord.com/developers/applications";
-      fullMessage += "2. Click on your bot";
-      fullMessage += "3. Click 'Bot' on the sidebar";
-      fullMessage += "4. Turn on 'Server Members Intent'";
-
-      console.error(fullMessage);
-    } else if (err instanceof PluginInstallationError) {
-      // Don't truncate PluginInstallationErrors as they can get lengthy
-      console.error(err);
-    } else {
-      // Truncate long stack traces for other errors
-      const stack = err.stack || "";
-      let stackLines = stack.split("\n");
-      if (stackLines.length > MAX_STACK_TRACE_LINES + 2) {
-        stackLines = stackLines.slice(0, MAX_STACK_TRACE_LINES);
-        stackLines.push(
-          `    ...stack trace truncated to ${MAX_STACK_TRACE_LINES} lines`,
-        );
-      }
-      const finalStack = stackLines.join("\n");
-
-      if (err.code) {
-        console.error(`Error ${err.code}: ${finalStack}`);
-      } else {
-        console.error(`Error: ${finalStack}`);
-      }
-    }
-  } else {
-    console.error("Unknown error occurred");
+  if (!err) {
+    console.error("a fatal and very strange error has occurred...");
+    return process.exit(1);
   }
 
-  process.exit(1);
+  if (err instanceof BotError) {
+    // Leave out stack traces for BotErrors (the message has enough info)
+    console.error(`Error: ${err.message}`);
+  } else if (err.message === "Disallowed intents specified") {
+    let fullMessage = "Error: Disallowed intents specified";
+    fullMessage += "\n\n";
+    fullMessage +=
+      "To run the bot, you must enable 'Server Members Intent' on your bot's page in the Discord Developer Portal:";
+    fullMessage += "\n\n";
+    fullMessage += "1. Go to https://discord.com/developers/applications";
+    fullMessage += "2. Click on your bot";
+    fullMessage += "3. Click 'Bot' on the sidebar";
+    fullMessage += "4. Turn on 'Server Members Intent'";
+
+    console.error(fullMessage);
+  } else if (err instanceof PluginInstallationError) {
+    // Don't truncate PluginInstallationErrors as they can get lengthy
+    console.error(err);
+  } else {
+    // Truncate long stack traces for other errors
+    const stack = err.stack || "";
+    let stackLines = stack.split("\n");
+    if (stackLines.length > MAX_STACK_TRACE_LINES + 2) {
+      stackLines = stackLines.slice(0, MAX_STACK_TRACE_LINES);
+      stackLines.push(
+        `    ...stack trace truncated to ${MAX_STACK_TRACE_LINES} lines`,
+      );
+    }
+    const finalStack = stackLines.join("\n");
+
+    if (err.code) {
+      console.error(`Error ${err.code}: ${finalStack}`);
+    } else {
+      console.error(`An error has occurred:`);
+      console.error(err);
+    }
+  }
 }
 
 process.on("uncaughtException", errorHandler);
@@ -124,7 +123,7 @@ modules.forEach((mod) => {
   }
 
   // // Start the bot
-  main.start();
+  start(bot);
 
   // Run the webserver
   serve({

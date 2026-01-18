@@ -1,90 +1,51 @@
-import { utc } from "moment";
-import knex from "../knex";
+import { useDb } from "../db";
+const db = useDb();
 
-/**
- * @param {String} userId
- * @returns {Promise<{ isBlocked: boolean, expiresAt: string }>}
- */
 export async function getBlockStatus(
-	userId: string,
+  user_id: string,
 ): Promise<{ isBlocked: boolean; expiresAt: string }> {
-	const row = await knex("blocked_users").where("user_id", userId).first();
+  const rows =
+    await db`SELECT expires_at FROM blocked_users WHERE user_id = ${user_id} LIMIT 1`;
 
-	return {
-		isBlocked: !!row,
-		expiresAt: row?.expires_at,
-	};
+  return {
+    isBlocked: rows.length === 1,
+    expiresAt: rows[0].expires_at || null,
+  };
 }
 
-/**
- * Checks whether userId is blocked
- * @param {String} userId
- * @returns {Promise<Boolean>}
- */
 export async function isBlocked(userId: string): Promise<boolean> {
-	return (await getBlockStatus(userId)).isBlocked;
+  return (await getBlockStatus(userId)).isBlocked;
 }
 
-/**
- * Blocks the given userId
- * @param {String} userId
- * @param {String} userName
- * @param {String} blockedBy
- * @returns {Promise}
- */
 export async function block(
-	userId: string,
-	userName: string = "",
-	blockedBy: string = "",
-	expiresAt = null,
+  user_id: string,
+  user_name: string = "",
+  blocked_by: string = "",
+  expires_at: Date | null = null,
 ): Promise<any> {
-	if (await isBlocked(userId)) return;
+  if (await isBlocked(user_id)) return;
 
-	return knex("blocked_users").insert({
-		user_id: userId,
-		user_name: userName,
-		blocked_by: blockedBy,
-		blocked_at: utc().format("YYYY-MM-DD HH:mm:ss"),
-		expires_at: expiresAt,
-	});
+  return await db`INSERT INTO blocked_users ${db({ user_id, user_name, blocked_by, blocked_at: new Date(), expires_at })}`;
 }
 
-/**
- * Unblocks the given userId
- * @param {String} userId
- * @returns {Promise}
- */
-export async function unblock(userId: string): Promise<any> {
-	return knex("blocked_users").where("user_id", userId).delete();
+export async function unblock(user_id: string): Promise<any> {
+  return await db`DELETE FROM blocked_users WHERE user_id = ${user_id}`;
 }
 
-/**
- * Updates the expiry time of the block for the given userId
- * @param {String} userId
- * @param {String} expiresAt
- * @returns {Promise<void>}
- */
 export async function updateExpiryTime(
-	userId: string,
-	expiresAt: string,
+  user_id: string,
+  expires_at: Date,
 ): Promise<void> {
-	return knex("blocked_users").where("user_id", userId).update({
-		expires_at: expiresAt,
-	});
+  return await db`UPDATE blocked_users SET expires_at = ${expires_at} WHERE user_id = ${user_id}`;
 }
 
-/**
- * @returns {String[]}
- */
 export async function getExpiredBlocks(): Promise<string[]> {
-	const now = utc().format("YYYY-MM-DD HH:mm:ss");
+  const now = new Date();
 
-	const blocks = await knex("blocked_users")
-		.whereNotNull("expires_at")
-		.where("expires_at", "<=", now)
-		.select();
+  const blockedUsers =
+    await db`SELECT * FROM blocked_users WHERE expires_at IS NOT NULL AND expires_at <= ${now}`;
 
-	return blocks.map((_block) => _block.user_id);
+  return blockedUsers.map((block: { user_id: string }) => block.user_id);
 }
 
 /**
@@ -92,31 +53,39 @@ export async function getExpiredBlocks(): Promise<string[]> {
  * @returns {Promise<Array<{ userId: string, userName: string, blockedBy: string, blockedAt: string, expiresAt: string }>>}
  */
 export async function getBlockedUsers(): Promise<
-	Array<{
-		userId: string;
-		userName: string;
-		blockedBy: string;
-		blockedAt: string;
-		expiresAt: string;
-	}>
+  Array<{
+    userId: string;
+    userName: string;
+    blockedBy: string;
+    blockedAt: string;
+    expiresAt: string;
+  }>
 > {
-	const rows = await knex("blocked_users").select();
+  const blockedUsers = await db`SELECT * FROM blocked_users`;
 
-	return rows.map((row) => ({
-		userId: row.user_id,
-		userName: row.user_name,
-		blockedBy: row.blocked_by,
-		blockedAt: row.blocked_at,
-		expiresAt: row.expires_at,
-	}));
+  return blockedUsers.map(
+    (row: {
+      user_id: string;
+      user_name: string;
+      blocked_by: string;
+      blocked_at: Date;
+      expires_at: Date;
+    }) => ({
+      userId: row.user_id,
+      userName: row.user_name,
+      blockedBy: row.blocked_by,
+      blockedAt: row.blocked_at,
+      expiresAt: row.expires_at,
+    }),
+  );
 }
 
-// export default {
-//   getBlockStatus,
-//   isBlocked,
-//   block,
-//   unblock,
-//   updateExpiryTime,
-//   getExpiredBlocks,
-//   getBlockedUsers,
-// };
+export default {
+  getBlockStatus,
+  isBlocked,
+  block,
+  unblock,
+  updateExpiryTime,
+  getExpiredBlocks,
+  getBlockedUsers,
+};

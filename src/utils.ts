@@ -1,9 +1,21 @@
-import Eris, {
-  DMChannel,
-  GroupChannel,
-  GuildChannel,
-  ThreadChannel,
-} from "eris";
+import {
+  Client,
+  Guild,
+  GuildMember,
+  TextChannel,
+  type Channel,
+  Message,
+  Attachment,
+  Role,
+  EmbedBuilder,
+  type MessageCreateOptions,
+  PermissionsBitField,
+  ChannelType,
+  type SendableChannels,
+  type MessageMentionTypes,
+  type Snowflake,
+  type MessageMentionOptions,
+} from "discord.js";
 import humanizeDuration from "humanize-duration";
 import moment, { type MomentInput } from "moment";
 import { publicIp } from "public-ip";
@@ -14,25 +26,25 @@ import type Thread from "./data/Thread";
 
 const userMentionRegex = /^<@!?([0-9]+?)>$/;
 
-let inboxGuild: Eris.Guild | undefined;
-let mainGuilds: Array<Eris.Guild> = [];
+let inboxGuild: Guild | undefined;
+let mainGuilds: Array<Guild> = [];
 
 /**
- * @returns {Eris~Guild}
+ * @returns {Guild}
  */
-export function getInboxGuild(): Eris.Guild {
+export function getInboxGuild(): Guild {
   if (!inboxGuild)
-    inboxGuild = bot.guilds.find((g) => g.id === config.inboxServerId);
+    inboxGuild = bot.guilds.cache.find((g) => g.id === config.inboxServerId);
   if (!inboxGuild) throw new BotError("The bot is not on the inbox server!");
   return inboxGuild;
 }
 
 /**
- * @returns {Eris~Guild[]}
+ * @returns {Guild[]}
  */
-export function getMainGuilds(): Array<Eris.Guild> {
+export function getMainGuilds(): Array<Guild> {
   if (mainGuilds.length === 0) {
-    mainGuilds = bot.guilds.filter((g) =>
+    mainGuilds = Array.from(bot.guilds.cache.values()).filter((g) =>
       (config.mainServerId || "").includes(g.id),
     );
   }
@@ -50,62 +62,58 @@ export function getMainGuilds(): Array<Eris.Guild> {
 
 /**
  * Returns the designated log channel, or the default channel if none is set
- * @returns {Eris~TextChannel}
+ * @returns {TextChannel}
  */
-export function getLogChannel(): Eris.TextChannel {
+export function getLogChannel(): TextChannel {
   const _inboxGuild = getInboxGuild();
-  const _logChannel = _inboxGuild.channels.get(config.logChannelId || "");
+  const _logChannel = _inboxGuild.channels.cache.get(config.logChannelId || "");
 
   if (!_logChannel) {
     throw new BotError("Log channel (logChannelId) not found!");
   }
 
-  if (!(_logChannel instanceof Eris.TextChannel)) {
+  if (
+    !_logChannel.isTextBased() ||
+    _logChannel.type !== ChannelType.GuildText
+  ) {
     throw new BotError(
       "Make sure the logChannelId option is set to a text channel!",
     );
   }
 
-  return _logChannel;
+  return _logChannel as TextChannel;
 }
 
-export function postLog(
-  content: Eris.MessageContent,
-  file?: Eris.FileContent | Eris.FileContent[],
-) {
-  return getLogChannel().createMessage(content, file);
+export function postLog(content: MessageCreateOptions | string, files?: any) {
+  const messageOptions =
+    typeof content === "string" ? { content, files } : { ...content, files };
+  return getLogChannel().send(messageOptions);
 }
 
-export function postError(
-  channel: Eris.TextChannel,
-  content: string,
-  opts = {},
-) {
-  return channel.createMessage({
-    ...opts,
-    content: `! ${content}`,
-  });
+export function postError(channel: Channel, content: string, opts = {}) {
+  if (channel.isSendable()) {
+    return channel.send({
+      ...opts,
+      content: `❌ ${content}`,
+    });
+  }
 }
 
-/**
- * Returns whether the given member has permission to use modmail commands
- * @param {Eris.Member} member
- * @returns {boolean}
- */
-export function isStaff(member: Eris.Member | null): boolean {
+export function isStaff(member: GuildMember | null): boolean {
   if (!member) return false;
   if (config.inboxServerPermission?.length === 0) return true;
-  if (member.guild.ownerID === member.id) return true;
+  if (member.guild.ownerId === member.id) return true;
 
   return (config.inboxServerPermission || []).some((perm) => {
     if (isSnowflake(perm as string)) {
       // If perm is a snowflake, check it against the member's user id and roles
       if (member.id === perm) return true;
-      if (member.roles.includes(perm as string)) return true;
+      if (member.roles.cache.has(perm as string)) return true;
     } else {
       // Otherwise assume perm is the name of a permission
-      // TODO: properly type
-      return member.permissions.has(perm as any);
+      return member.permissions.has(
+        perm as keyof typeof PermissionsBitField.Flags,
+      );
     }
 
     return false;
@@ -114,55 +122,55 @@ export function isStaff(member: Eris.Member | null): boolean {
 
 /**
  * Returns whether the given message is on the inbox server
- * @param {Eris.Client} client
- * @param {Eris.Message} msg
+ * @param {Client} client
+ * @param {Message} msg
  * @returns {Promise<boolean>}
  */
 export async function messageIsOnInboxServer(
-  client: Eris.Client,
-  msg: Eris.Message,
+  client: Client,
+  msg: Message,
 ): Promise<boolean> {
   const channel = (await getOrFetchChannel(
     client,
     msg.channel.id,
-  )) as Eris.TextChannel;
-  if (!channel || !channel.guild) return false;
+  )) as TextChannel;
+  if (!channel || !("guild" in channel) || !channel.guild) return false;
   if (channel.guild.id !== getInboxGuild().id) return false;
   return true;
 }
 
 /**
  * Returns whether the given message is on the main server
- * @param {Eris.Client} client
- * @param {Eris.Message} msg
+ * @param {Client} client
+ * @param {Message} msg
  * @returns {Promise<boolean>}
  */
 export async function messageIsOnMainServer(
-  client: Eris.Client,
-  msg: Eris.Message,
+  client: Client,
+  msg: Message,
 ): Promise<boolean> {
   const channel = (await getOrFetchChannel(
     client,
     msg.channel.id,
-  )) as Eris.TextChannel | null;
-  if (!channel || !channel.guild) return false;
+  )) as TextChannel | null;
+  if (!channel || !("guild" in channel) || !channel.guild) return false;
 
-  return getMainGuilds().some((g) => channel.guild.id === g.id);
+  return getMainGuilds().some((g) => channel.guild!.id === g.id);
 }
 
 /**
- * @param {Eris.Attachment} attachment
+ * @param {Attachment} attachment
  * @param {string} attachmentUrl
  * @returns {Promise<string>}
  */
 export async function formatAttachment(
-  attachment: Eris.Attachment,
+  attachment: Attachment,
   attachmentUrl: string,
 ): Promise<string> {
   let filesize = attachment.size || 0;
   filesize /= 1024;
 
-  return `**Attachment:** ${attachment.filename} (${filesize.toFixed(1)}KB)\n${attachmentUrl}`;
+  return `**Attachment:** ${attachment.name} (${filesize.toFixed(1)}KB)\n${attachmentUrl}`;
 }
 
 /**
@@ -186,30 +194,16 @@ export function getUserMention(str: string): string | null {
   return null;
 }
 
-/**
- * Returns the current timestamp in an easily readable form
- * @param {...Parameters<typeof moment>>} momentArgs
- * @returns {String}
- */
 export function getTimestamp(input: MomentInput, strict = false): string {
   return moment.utc(input, strict).format("HH:mm");
 }
 
-/**
- * Disables link previews in the given string by wrapping links in < >
- * @param {String} str
- * @returns {String}
- */
 export function disableLinkPreviews(str: string): string {
   return str.replace(/(^|[^<])(https?:\/\/\S+)/gi, "$1<$2>");
 }
 
-/** @var {Promise<string>|null} cachedIp */
 let cachedIpPromise: Promise<string> | null = null;
 
-/**
- * @returns {Promise<string>}
- */
 export async function getSelfIp(): Promise<string> {
   if (!cachedIpPromise) {
     cachedIpPromise = publicIp({ timeout: 1000 }).catch((err) => {
@@ -225,11 +219,6 @@ export async function getSelfIp(): Promise<string> {
   return cachedIpPromise;
 }
 
-/**
- * Returns a URL to the bot's web server
- * @param {String} path
- * @returns {Promise<String>}
- */
 export async function getSelfUrl(path: string = ""): Promise<string> {
   if (config.url) {
     return `${config.url}/${path}`;
@@ -240,22 +229,13 @@ export async function getSelfUrl(path: string = ""): Promise<string> {
   }
 }
 
-/**
- * Returns the highest hoisted role of the given member
- * @param {Eris~Member} member
- * @returns {Eris~Role}
- */
-export function getMainRole(member: Eris.Member): Eris.Role {
-  const roles = member.roles.map((id) => member.guild.roles.get(id));
-  roles.sort((a: Eris.Role | undefined, b: Eris.Role | undefined) => {
-    if (a && b) {
-      return a.position > b.position ? -1 : 1;
-    }
-
-    return 0;
+export function getMainRole(member: GuildMember): Role | undefined {
+  const roles = Array.from(member.roles.cache.values());
+  roles.sort((a: Role, b: Role) => {
+    return a.position > b.position ? -1 : 1;
   });
 
-  return roles.find((r) => r?.hoist) as Eris.Role;
+  return roles.find((r) => r.hoist);
 }
 
 /**
@@ -361,41 +341,42 @@ export function getInboxMention(): string {
   return mentionRolesToMention(mentionRoles);
 }
 
-/**
- * @param {string[]} mentionRoles
- * @returns {object}
- */
-export function mentionRolesToAllowedMentions(mentionRoles: string[]): object {
+export function mentionRolesToAllowedMentions(
+  mentionRoles: string[],
+): MessageMentionOptions {
   const allowedMentions = {
-    everyone: false,
-    roles: [] as Array<string>,
+    parse: [] as MessageMentionTypes[],
+    roles: [] as Snowflake[],
+    users: [],
+    repliedUser: false,
   };
 
   for (const role of mentionRoles) {
-    if (role === "here" || role === "everyone") allowedMentions.everyone = true;
-    else allowedMentions.roles.push(role);
+    if (role === "here" || role === "everyone") {
+      allowedMentions.parse.push("everyone");
+    } else {
+      allowedMentions.parse.push("roles");
+      allowedMentions.roles.push(role);
+    }
   }
 
   return allowedMentions;
 }
 
-/**
- * @returns {object}
- */
-export function getInboxMentionAllowedMentions(): object {
+export function getInboxMentionAllowedMentions(): MessageMentionOptions {
   const mentionRoles = getValidMentionRoles(config.mentionRole || []);
   return mentionRolesToAllowedMentions(mentionRoles);
 }
 
 export function postSystemMessageWithFallback(
-  channel: Eris.TextChannel,
+  channel: TextChannel,
   thread: Thread,
   text: string,
 ) {
   if (thread) {
     thread.postSystemMessage(text);
   } else {
-    channel.createMessage(text);
+    channel.send(text);
   }
 }
 
@@ -412,7 +393,7 @@ export function setDataModelProps<
     // DATETIME fields are always returned as Date objects in MySQL/MariaDB
     if (props[prop] instanceof Date) {
       // ...even when NULL, in which case the date's set to unix epoch
-      if (props[prop].getUTCFullYear() === 1970) {
+      if ((props[prop] as Date).getUTCFullYear() === 1970) {
         target[prop] = null as T[Extract<keyof T, string>];
       } else {
         // Set the value as a string in the same format it's returned in SQLite
@@ -449,7 +430,7 @@ export function readMultilineConfigValue(str: Array<string> | string) {
   return Array.isArray(str) ? str.join("\n") : str;
 }
 
-// ()‘ ‘•)
+// ()' '•)
 export function noop() {}
 
 // https://discord.com/developers/docs/resources/channel#create-message-params
@@ -458,43 +439,40 @@ const MAX_MESSAGE_CONTENT_LENGTH = 2000;
 // https://discord.com/developers/docs/resources/channel#embed-limits
 const MAX_EMBED_CONTENT_LENGTH = 6000;
 
-/**
- * Checks if the given message content is within Discord's message length limits.
- *
- * Based on testing, Discord appears to enforce length limits (at least in the client)
- * the same way JavaScript does, using the UTF-16 byte count as the number of characters.
- *
- * @param {string|Eris.MessageContent} content
- */
-export function messageContentIsWithinMaxLength(
-  content: string | Eris.MessageContent,
-) {
+export function messageContentIsWithinMaxLength(content: string | Message) {
+  let check = {
+    content: "",
+  };
+
   if (typeof content === "string") {
-    content = { content };
+    check.content = content;
   }
 
-  if (content.content && content.content.length > MAX_MESSAGE_CONTENT_LENGTH) {
+  if (check.content && check.content.length > MAX_MESSAGE_CONTENT_LENGTH) {
     return false;
   }
 
-  if (content.embeds) {
+  if (content instanceof Message && content.embeds) {
     for (const embed of content.embeds) {
       let embedContentLength = 0;
 
-      if (embed.title) embedContentLength += embed.title.length;
-      if (embed.description) embedContentLength += embed.description.length;
-      if (embed.footer?.text) {
-        embedContentLength += embed.footer.text.length;
+      // Handle both EmbedBuilder and plain objects
+      const embedData = embed instanceof EmbedBuilder ? embed.data : embed;
+
+      if (embedData.title) embedContentLength += embedData.title.length;
+      if (embedData.description)
+        embedContentLength += embedData.description.length;
+      if (embedData.footer?.text) {
+        embedContentLength += embedData.footer.text.length;
       }
-      if (embed.author?.name) {
-        embedContentLength += embed.author.name.length;
+      if (embedData.author?.name) {
+        embedContentLength += embedData.author.name.length;
       }
 
-      if (embed.fields) {
-        for (const field of embed.fields) {
-          if (field.name === "title") embedContentLength += field.name.length;
-          if (field.name === "description")
-            embedContentLength += field.value.length;
+      if (embedData.fields) {
+        for (const field of embedData.fields) {
+          if (field.name) embedContentLength += field.name.length;
+          if (field.value) embedContentLength += field.value.length;
         }
       }
 
@@ -581,48 +559,23 @@ export function chunkMessageLines(str: string, maxChunkLength = 1990) {
   });
 }
 
-/**
- * @type {Record<string, Promise<Eris.AnyChannel | null>>}
- */
-const fetchChannelPromises: Record<
-  string,
-  Promise<Eris.AnyChannel | null>
-> = {};
+const fetchChannelPromises: Record<string, Promise<SendableChannels>> = {};
 
-/**
- * @param {Eris.Client} client
- * @param {string} channelId
- * @returns {Promise<Eris.AnyChannel | null>}
- */
 export async function getOrFetchChannel(
-  client: Eris.Client,
+  client: Client,
   channelId: string,
-): Promise<Eris.AnyChannel | null> {
-  const cachedChannel = client.getChannel(channelId);
+): Promise<SendableChannels> {
+  const cachedChannel = client.channels.cache.get(channelId);
   if (cachedChannel) {
-    return cachedChannel;
+    return cachedChannel as SendableChannels;
   }
 
   if (!fetchChannelPromises[channelId]) {
     fetchChannelPromises[channelId] = (async () => {
-      const channel = await client.getRESTChannel(channelId);
-      if (!channel) {
-        return null;
-      }
-
-      // Cache the result
-      if (channel instanceof ThreadChannel) {
-        channel.guild.threads.add(channel);
-        client.threadGuildMap[channel.id] = channel.guild.id;
-      } else if (channel instanceof GuildChannel) {
-        channel.guild.channels.add(channel);
-        client.channelGuildMap[channel.id] = channel.guild.id;
-      } else if (channel instanceof DMChannel) {
-        client.dmChannels.add(channel);
-      } else if (channel instanceof GroupChannel) {
-        // TODO: Check if this is even necessary.
-        //        client.groupChannels.add(channel);
-      }
+      const channel = (await client.channels.fetch(
+        channelId,
+      )) as SendableChannels;
+      if (!channel) throw "No channel was found";
 
       return channel;
     })();
@@ -631,15 +584,21 @@ export async function getOrFetchChannel(
   return fetchChannelPromises[channelId];
 }
 
-/**
- * Converts a MessageContent, i.e. string | AdvancedMessageContent, to an AdvancedMessageContent object
- * @param {Eris.MessageContent} content
- * @returns {Eris.AdvancedMessageContent}
- */
 export function messageContentToAdvancedMessageContent(
-  content: Eris.MessageContent,
-): Eris.AdvancedMessageContent {
+  content: string | MessageCreateOptions,
+): MessageCreateOptions {
   return typeof content === "string" ? { content } : content;
+}
+
+export function slugify(from: string): string {
+  return String(from)
+    .normalize("NFKD") // split accented characters into their base characters and diacritical marks
+    .replace(/[\u0300-\u036f]/g, "") // remove all the accents, which happen to be all in the \u03xx UNICODE block.
+    .trim() // trim leading or trailing whitespace
+    .toLowerCase() // convert to lowercase
+    .replace(/[^a-z0-9 -]/g, "") // remove non-alphanumeric characters
+    .replace(/\s+/g, "-") // replace spaces with hyphens
+    .replace(/-+/g, "-"); // remove consecutive hyphens
 }
 
 export const START_CODEBLOCK = "```";

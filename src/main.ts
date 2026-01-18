@@ -1,143 +1,136 @@
-import Eris, {
-  Constants,
-  DMChannel,
-  PrivateChannel,
-  type Message,
-  type TextableChannel,
-  type TextChannel,
-} from "eris";
-import bot from "./bot";
 import config from "./cfg";
 import { createCommandManager } from "./commands";
 import * as blocked from "./data/blocked";
 import { formatters } from "./formatters";
 import { messageQueue } from "./queue";
 import * as utils from "./utils";
-
-const threads = require("./data/threads").default;
-
+import * as threads from "./data/threads";
 import { ACCIDENTAL_THREAD_MESSAGES } from "./data/constants";
 import * as updates from "./data/updates";
 import { getOrFetchChannel } from "./utils";
+import {
+  ActivityType,
+  ChannelType,
+  Client,
+  Events,
+  Guild,
+  Message,
+  MessageType,
+} from "discord.js";
+import { BotError } from "./BotError";
+import { getAllOpenThreads } from "./data/threads";
+import { useDb } from "./db";
+import { getPluginAPI, loadPlugins } from "./plugins";
+const db = useDb();
 
-export default {
-  async start() {
-    console.log("Connecting to Discord...");
+export async function start(bot: Client) {
+  console.log("Connecting to Discord...");
 
-    bot.once("ready", async () => {
-      console.log("Connected! Waiting for servers to become available...");
+  bot.once(Events.ClientReady, async (readyClient) => {
+    console.log(
+      `Connected as ${readyClient.user.tag}\nWaiting for servers to become available...`,
+    );
 
-      await new Promise<void>((resolve) => {
-        const waitNoteTimeout = setTimeout(() => {
+    await new Promise<void>((resolve) => {
+      const waitNoteTimeout = setTimeout(() => {
+        console.log(
+          "Servers did not become available after 15 seconds, continuing start-up anyway",
+        );
+        console.log("");
+
+        const isSingleServer =
+          config.inboxServerId &&
+          config.mainServerId?.includes(config.inboxServerId);
+
+        if (isSingleServer) {
           console.log(
-            "Servers did not become available after 15 seconds, continuing start-up anyway",
+            "WARNING: The bot will not work before it's invited to the server.",
           );
-          console.log("");
-
-          const isSingleServer =
-            config.inboxServerId &&
-            config.mainServerId?.includes(config.inboxServerId);
-
-          if (isSingleServer) {
+        } else {
+          const hasMultipleMainServers = (config.mainServerId || []).length > 1;
+          if (hasMultipleMainServers) {
             console.log(
-              "WARNING: The bot will not work before it's invited to the server.",
+              "WARNING: The bot will not function correctly until it's invited to *all* main servers and the inbox server.",
             );
           } else {
-            const hasMultipleMainServers =
-              (config.mainServerId || []).length > 1;
-            if (hasMultipleMainServers) {
-              console.log(
-                "WARNING: The bot will not function correctly until it's invited to *all* main servers and the inbox server.",
-              );
-            } else {
-              console.log(
-                "WARNING: The bot will not function correctly until it's invited to *both* the main server and the inbox server.",
-              );
-            }
+            console.log(
+              "WARNING: The bot will not function correctly until it's invited to *both* the main server and the inbox server.",
+            );
           }
-
-          console.log("");
-
-          resolve();
-        }, 15 * 1000);
-
-        Promise.all([
-          ...(config.mainServerId || []).map((id) => waitForGuild(id)),
-          waitForGuild(config.inboxServerId || ""),
-        ]).then(() => {
-          clearTimeout(waitNoteTimeout);
-          resolve();
-        });
-      });
-
-      console.log("Initializing...");
-      initStatus();
-      initBaseMessageHandlers();
-      initUpdateNotifications();
-
-      console.log("Loading plugins...");
-      const pluginResult = await loadAllPlugins();
-      console.log(
-        `Loaded ${pluginResult.loadedCount} plugins (${pluginResult.baseCount} built-in plugins, ${pluginResult.externalCount} external plugins)`,
-      );
-
-      console.log("");
-      console.log("Done! Now listening to DMs.");
-      console.log("");
-
-      const openThreads = await threads.getAllOpenThreads();
-      for (const thread of openThreads) {
-        try {
-          await thread.recoverDowntimeMessages();
-        } catch (err) {
-          console.error(
-            `Error while recovering messages for ${thread.user_id}: ${err}`,
-          );
         }
-      }
+
+        console.log("");
+
+        resolve();
+      }, 15 * 1000);
+
+      Promise.all([
+        ...(config.mainServerId || []).map((id) => waitForGuild(bot, id)),
+        waitForGuild(bot, config.inboxServerId || ""),
+      ]).then(() => {
+        clearTimeout(waitNoteTimeout);
+        resolve();
+      });
     });
 
-    bot.connect();
-  },
-};
+    console.log("Initializing...");
 
-function waitForGuild(guildId: string) {
-  if (bot.guilds.has(guildId)) {
+    initStatus(bot);
+    initBaseMessageHandlers(bot);
+    initUpdateNotifications();
+
+    console.log("Loading plugins...");
+    const pluginResult = await loadAllPlugins(bot);
+    console.log(
+      `Loaded ${pluginResult.loadedCount} plugins (${pluginResult.baseCount} built-in plugins, ${pluginResult.externalCount} external plugins)`,
+    );
+
+    console.log("");
+    console.log("Done! Now listening to DMs.");
+    console.log("");
+
+    const openThreads = await getAllOpenThreads(db);
+    for (const thread of openThreads) {
+      try {
+        await thread.recoverDowntimeMessages();
+      } catch (err) {
+        console.error(
+          `Error while recovering messages for ${thread.user_id}: ${err}`,
+        );
+        console.error(err);
+      }
+    }
+  });
+
+  bot.login(config.token);
+}
+
+function waitForGuild(bot: Client, guildId: string) {
+  if (bot.guilds.cache.has(guildId)) {
     return Promise.resolve();
   }
-
   return new Promise<void>((resolve) => {
-    bot.on("guildAvailable", (guild) => {
+    const handler = (guild: Guild) => {
       if (guild.id === guildId) {
+        bot.off("guildCreate", handler); // Clean up listener
         resolve();
       }
-    });
+    };
+    bot.on("guildCreate", handler);
   });
 }
 
-function initStatus() {
+function initStatus(bot: Client) {
   function applyStatus() {
-    const type_ = {
-      GAME: 0,
-      STREAMING: 1,
-      LISTENING: 2,
-      WATCHING: 3,
-      CUSTOM: 4,
-      COMPETING: 5,
-    }[(config.statusType || "GAME").toUpperCase()];
-
-    bot.editStatus("online", [
-      { name: config.status || "", type: type_ as Eris.ActivityType },
-    ]);
-  }
-
-  if (
-    config.status == null ||
-    config.status === "" ||
-    config.status === "none" ||
-    config.status === "off"
-  ) {
-    return;
+    bot.user?.setPresence({
+      activities: [
+        {
+          type: ActivityType.Custom,
+          name: config.status || "DM to contact mods",
+        },
+      ],
+      status: "online",
+    });
   }
 
   // Set the bot status initially, then reapply it every hour since in some cases it gets unset
@@ -145,118 +138,224 @@ function initStatus() {
   setInterval(applyStatus, 60 * 60 * 1000);
 }
 
-function initBaseMessageHandlers() {
-  /**
-   * When a moderator posts in a modmail thread...
-   * 1) If alwaysReply is enabled, reply to the user
-   * 2) If alwaysReply is disabled, save that message as a chat message in the thread
-   */
-  bot.on("messageCreate", async (msg) => {
-    if (
-      !(await utils.messageIsOnInboxServer(
-        bot,
-        msg as Message<TextableChannel>,
-      ))
-    )
-      return;
-    if (msg.author.id === bot.user.id) return;
+async function messageIsOnInboxServer(bot: Client, msg: Message) {
+  const channel = msg.channel;
+  if (!channel || !channel.isTextBased) return false;
 
-    const thread = await threads.findByChannelId(msg.channel.id);
-    if (!thread) return;
+  const guild = await bot.guilds.fetch(config.inboxServerId);
+  if (!guild) {
+    throw new BotError("The bot is not on the inbox server!");
+  }
+
+  return msg.guildId === config.inboxServerId;
+}
+
+function initBaseMessageHandlers(bot: Client) {
+  console.log("adding listeners");
+
+  bot.on(Events.MessageCreate, async (msg) => {
+    console.log("We got a message");
+
+    if (msg.author.id === bot.user?.id) return;
 
     if (
-      !msg.author.bot &&
-      (msg.content.startsWith(config.prefix) ||
-        msg.content.startsWith(config.snippetPrefix || "!!"))
+      (await utils.messageIsOnMainServer(bot, msg)) &&
+      msg.mentions.users.has(bot.user?.id || "") &&
+      !msg.author.bot
     ) {
-      // Save commands as "command messages"
-      thread.saveCommandMessageToLogs(msg);
-    } else if (!msg.author.bot && config.alwaysReply) {
-      // AUTO-REPLY: If config.alwaysReply is enabled, send all chat messages in thread channels as replies
-      if (!utils.isStaff(msg.member)) return; // Only staff are allowed to reply
-
-      const replied = await thread.replyToUser(
-        msg.member,
-        msg.content.trim(),
-        msg.attachments,
-        config.alwaysReplyAnon || false,
-        msg.messageReference,
-      );
-      if (replied) msg.delete();
-    } else {
-      // Otherwise just save the messages as "chat" in the logs
-      thread.saveChatMessageToLogs(msg);
-    }
-  });
-
-  /**
-   * When we get a private message...
-   * 1) Find the open modmail thread for this user, or create a new one
-   * 2) Post the message as a user reply in the thread
-   */
-  bot.on("messageCreate", async (msg) => {
-    const channel = await getOrFetchChannel(bot, msg.channel.id);
-    if (!(channel instanceof DMChannel)) return;
-    if (msg.author.bot) return;
-    if (
-      msg.type !== Constants.MessageTypes.DEFAULT &&
-      msg.type !== Constants.MessageTypes.REPLY
-    )
-      return; // Ignore pins etc.
-
-    if (await blocked.isBlocked(msg.author.id)) {
-      if (config.blockedReply != null) {
-        channel.createMessage(config.blockedReply).catch(utils.noop); //ignore silently
-      }
-      return;
-    }
-
-    // Private message handling is queued so e.g. multiple message in quick succession don't result in multiple channels being created
-    messageQueue.add(async () => {
-      let thread = await threads.findOpenThreadByUserId(msg.author.id);
-      const createNewThread = thread == null;
-
-      // New thread
-      if (createNewThread) {
-        // Ignore messages that shouldn't usually open new threads, such as "ok", "thanks", etc.
-        if (
-          config.ignoreAccidentalThreads &&
-          msg.content &&
-          ACCIDENTAL_THREAD_MESSAGES.includes(msg.content.trim().toLowerCase())
-        )
-          return;
-
-        thread = await threads.createNewThreadForUser(msg.author, {
-          source: "dm",
-          message: msg,
-        });
+      /**
+       * When the bot is mentioned on the main server, ping staff in the log channel about it
+       */
+      if (await utils.messageIsOnInboxServer(bot, msg)) {
+        // For same server setups, check if the person who pinged modmail is staff. If so, ignore the ping.
+        if (utils.isStaff(msg.member)) return;
+      } else {
+        // For separate server setups, check if the member is staff on the modmail server
+        const inboxMember = await utils
+          .getInboxGuild()
+          .members.fetch(msg.author.id);
+        if (inboxMember && utils.isStaff(inboxMember)) return;
       }
 
-      if (thread) {
-        await thread.receiveUserReply(msg);
+      // If the person who mentioned the bot is blocked, ignore them
+      if (await blocked.isBlocked(msg.author.id)) return;
 
+      let content;
+      const mainGuilds = utils.getMainGuilds();
+      const staffMention = config.pingOnBotMention
+        ? utils.getInboxMention()
+        : "";
+      const allowedMentions = config.pingOnBotMention
+        ? utils.getInboxMentionAllowedMentions()
+        : undefined;
+
+      const channel = await bot.channels.fetch(msg.channelId);
+
+      const userMentionStr = `**${msg.author.username}** (\`${msg.author.id}\`)`;
+      const messageLink = `https://discord.com/channels/${msg.guildId}/${msg.channelId}/${msg.id}`;
+
+      if (mainGuilds.length === 1) {
+        content = `${staffMention}Bot mentioned in ${channel} by ${userMentionStr}: "${msg.content}"\n\n<${messageLink}>`;
+      } else {
+        content = `${staffMention}Bot mentioned in ${channel} (${msg.guild?.name}) by ${userMentionStr}: "${msg.content}"\n\n<${messageLink}>`;
+      }
+
+      content = utils.chunkMessageLines(content);
+      for (let i = 0; i < content.length; i++) {
+        const logChannel = utils.getLogChannel();
+        logChannel.send({ content: content[i], allowedMentions });
+      }
+
+      // Send an auto-response to the mention, if enabled
+      if (config.botMentionResponse) {
+        const botMentionResponse = utils.readMultilineConfigValue(
+          config.botMentionResponse,
+        );
+        if (channel && channel.isSendable())
+          channel.send({
+            content: botMentionResponse.replace(
+              /{userMention}/g,
+              `<@${msg.author.id}>`,
+            ),
+            allowedMentions: {
+              users: [msg.author.id],
+            },
+          });
+      }
+
+      // If configured, automatically open a new thread with a user who has pinged it
+      if (config.createThreadOnMention) {
+        const existingThread = await threads.findOpenThreadByUserId(
+          db,
+          msg.author.id,
+        );
+        if (!existingThread) {
+          // Only open a thread if we don't already have one
+          const createdThread = await threads.createNewThreadForUser(
+            db,
+            msg.author,
+            {
+              quiet: true,
+            },
+          );
+
+          if (!createdThread) return;
+
+          await createdThread.postSystemMessage(
+            `This thread was opened from a bot mention in <#${channel?.id}>`,
+          );
+          await createdThread.receiveUserReply(msg);
+        }
+      }
+    } else if (await messageIsOnInboxServer(bot, msg)) {
+      console.log("it's on the inbox server!");
+      /**
+       * When a moderator posts in a modmail thread...
+       * 1) If alwaysReply is enabled, reply to the user
+       * 2) If alwaysReply is disabled, save that message as a chat message in the thread
+       */
+      const thread = await threads.findByChannelId(db, msg.channel.id);
+      if (!thread) return;
+
+      if (
+        !msg.author.bot &&
+        (msg.content.startsWith(config.prefix) ||
+          msg.content.startsWith(config.snippetPrefix || "!!"))
+      ) {
+        // Save commands as "command messages"
+        thread.saveCommandMessageToLogs(msg);
+      } else if (!msg.author.bot && config.alwaysReply) {
+        const author = await msg.guild?.members.fetch(msg.author.id);
+        if (!msg.member) return; // Genuinely should not happen
+
+        // AUTO-REPLY: If config.alwaysReply is enabled, send
+        // all staff chat messages in thread channels as replies
+        if (!author || !utils.isStaff(author)) return;
+
+        const replied = await thread.replyToUser(
+          msg.member,
+          msg.content.trim(),
+          msg.attachments,
+          config.alwaysReplyAnon || false,
+          msg.reference,
+        );
+
+        if (replied) msg.delete();
+      } else {
+        // Otherwise just save the messages as "chat" in the logs
+        thread.saveChatMessageToLogs(msg);
+      }
+    } else if (msg.channel.type === ChannelType.DM) {
+      console.log("We got a dm:");
+      /**
+       * When we get a private message...
+       * 1) Find the open modmail thread for this user, or create a new one
+       * 2) Post the message as a user reply in the thread
+       */
+      const channel = await getOrFetchChannel(bot, msg.channel.id);
+      if (msg.author.bot) return;
+      if (msg.type !== MessageType.Default && msg.type !== MessageType.Reply)
+        return; // Ignore pins etc.
+
+      if (await blocked.isBlocked(msg.author.id)) {
+        if (config.blockedReply != null) {
+          // Ignore silently if this fails
+          channel.send(config.blockedReply || "").catch(utils.noop);
+        }
+        return;
+      }
+
+      // Private message handling is queued so e.g. multiple message in quick succession don't result in multiple channels being created
+      messageQueue.add(async () => {
+        let thread = await threads.findOpenThreadByUserId(db, msg.author.id);
+        const createNewThread = thread == null;
+
+        // New thread
         if (createNewThread) {
-          // Send auto-reply to the user
-          if (config.responseMessage) {
-            const responseMessage = utils.readMultilineConfigValue(
-              config.responseMessage,
-            );
+          // Ignore messages that shouldn't usually open new threads, such as "ok", "thanks", etc.
+          if (
+            config.ignoreAccidentalThreads &&
+            msg.content &&
+            ACCIDENTAL_THREAD_MESSAGES.includes(
+              msg.content.trim().toLowerCase(),
+            )
+          )
+            return;
 
-            try {
-              const postToThreadChannel =
-                config.showResponseMessageInThreadChannel;
-              await thread.sendSystemMessageToUser(responseMessage, {
-                postToThreadChannel,
-              });
-            } catch (err: any) {
-              await thread.postSystemMessage(
-                `**NOTE:** Could not send auto-response to the user. The error given was: \`${err.message}\``,
+          let newThread = await threads.createNewThreadForUser(db, msg.author, {
+            quiet: false,
+            source: "dm",
+            message: msg,
+          });
+          if (newThread) thread = newThread;
+        }
+
+        if (thread) {
+          await thread.receiveUserReply(msg);
+
+          if (createNewThread) {
+            // Send auto-reply to the user
+            if (config.responseMessage) {
+              const responseMessage = utils.readMultilineConfigValue(
+                config.responseMessage,
               );
+
+              try {
+                const postToThreadChannel =
+                  config.showResponseMessageInThreadChannel;
+                await thread.sendSystemMessageToUser(responseMessage, {
+                  postToThreadChannel,
+                });
+              } catch (err: any) {
+                await thread.postSystemMessage(
+                  `**NOTE:** Could not send auto-response to the user. The error given was: \`${err.message}\``,
+                );
+              }
             }
           }
         }
-      }
-    });
+      });
+    }
   });
 
   /**
@@ -264,15 +363,20 @@ function initBaseMessageHandlers() {
    * 1) If that message was in DMs, and we have a thread open with that user, post the edit as a system message in the thread, or edit the thread message
    * 2) If that message was moderator chatter in the thread, update the corresponding chat message in the DB
    */
-  bot.on("messageUpdate", async (msg, oldMessage) => {
+  bot.on(Events.MessageUpdate, async (msg, oldMessage) => {
     if (!msg || !msg.content) return;
 
-    const threadMessage = await threads.findThreadMessageByDMMessageId(msg.id);
+    const threadMessage = await threads.findThreadMessageByDMMessageId(
+      db,
+      msg.id,
+    );
     if (!threadMessage) {
       return;
     }
 
-    const thread = await threads.findById(threadMessage.thread_id);
+    const thread = await threads.findById(db, threadMessage.thread_id);
+    if (!thread) return;
+
     if (thread.isClosed()) {
       return;
     }
@@ -300,20 +404,27 @@ function initBaseMessageHandlers() {
         const formatted = formatters.formatUserReplyThreadMessage(
           threadMessageWithEdit,
         );
-        await bot
-          .editMessage(
-            thread.channel_id,
-            threadMessage.inbox_message_id,
-            formatted,
-          )
-          .catch(console.warn);
+
+        try {
+          const channel = await bot.channels.fetch(thread.channel_id);
+
+          if (channel?.isTextBased()) {
+            const message = await channel.messages.fetch(
+              threadMessage.inbox_message_id,
+            );
+            await message.edit(formatted);
+          }
+        } catch (e) {
+          console.warn(e);
+        }
       } else {
         await thread.postSystemMessage(editMessage);
       }
     }
 
     if (threadMessage.isChat()) {
-      thread.updateChatMessageInLogs(msg);
+      const message = await msg.fetch();
+      thread.updateChatMessageInLogs(message);
     }
   });
 
@@ -322,18 +433,34 @@ function initBaseMessageHandlers() {
    * 1) If that message was in DMs, and we have a thread open with that user, delete the thread message
    * 2) If that message was moderator chatter in the thread, delete it from the database as well
    */
-  bot.on("messageDelete", async (msg) => {
-    const threadMessage = await threads.findThreadMessageByDMMessageId(msg.id);
+  bot.on(Events.MessageDelete, async (msg) => {
+    const threadMessage = await threads.findThreadMessageByDMMessageId(
+      db,
+      msg.id,
+    );
     if (!threadMessage) return;
 
-    const thread = await threads.findById(threadMessage.thread_id);
+    const thread = await threads.findById(db, threadMessage.thread_id);
+    if (!thread) return;
+
     if (thread.isClosed()) {
       return;
     }
 
     if (threadMessage.isFromUser() && config.updateMessagesLive) {
       // If the deleted message was in DMs and updateMessagesLive is enabled, reflect the deletion in staff view
-      bot.deleteMessage(thread.channel_id, threadMessage.inbox_message_id);
+      try {
+        const channel = await bot.channels.fetch(thread.channel_id);
+
+        if (channel?.isTextBased()) {
+          const message = await channel.messages.fetch(
+            threadMessage.inbox_message_id,
+          );
+          await message.delete();
+        }
+      } catch (e) {
+        console.warn(e);
+      }
     }
 
     if (threadMessage.isChat()) {
@@ -342,87 +469,7 @@ function initBaseMessageHandlers() {
     }
   });
 
-  /**
-   * When the bot is mentioned on the main server, ping staff in the log channel about it
-   */
-  bot.on("messageCreate", async (msg: Eris.Message) => {
-    const channel = await getOrFetchChannel(bot, msg.channel.id);
-    if (!channel) return;
-
-    if (!(await utils.messageIsOnMainServer(bot, msg))) return;
-    if (!msg.mentions.some((user) => user.id === bot.user.id)) return;
-    if (msg.author.bot) return;
-
-    if (await utils.messageIsOnInboxServer(bot, msg)) {
-      // For same server setups, check if the person who pinged modmail is staff. If so, ignore the ping.
-      if (utils.isStaff(msg.member)) return;
-    } else {
-      // For separate server setups, check if the member is staff on the modmail server
-      const inboxMember = utils.getInboxGuild().members.get(msg.author.id);
-      if (inboxMember && utils.isStaff(inboxMember)) return;
-    }
-
-    // If the person who mentioned the bot is blocked, ignore them
-    if (await blocked.isBlocked(msg.author.id)) return;
-
-    let content;
-    const mainGuilds = utils.getMainGuilds();
-    const staffMention = config.pingOnBotMention ? utils.getInboxMention() : "";
-    const allowedMentions = config.pingOnBotMention
-      ? utils.getInboxMentionAllowedMentions()
-      : undefined;
-
-    const userMentionStr = `**${msg.author.username}** (\`${msg.author.id}\`)`;
-    const messageLink = `https://discord.com/channels/${(channel as TextChannel).guild.id}/${channel.id}/${msg.id}`;
-
-    if (mainGuilds.length === 1) {
-      content = `${staffMention}Bot mentioned in ${channel.mention} by ${userMentionStr}: "${msg.content}"\n\n<${messageLink}>`;
-    } else {
-      content = `${staffMention}Bot mentioned in ${channel.mention} (${(channel as TextChannel).guild.name}) by ${userMentionStr}: "${msg.content}"\n\n<${messageLink}>`;
-    }
-
-    content = utils.chunkMessageLines(content);
-    const logChannelId = utils.getLogChannel().id;
-    for (let i = 0; i < content.length; i++) {
-      await bot.createMessage(logChannelId, {
-        content: content[i],
-        allowedMentions,
-      });
-    }
-
-    // Send an auto-response to the mention, if enabled
-    if (config.botMentionResponse) {
-      const botMentionResponse = utils.readMultilineConfigValue(
-        config.botMentionResponse,
-      );
-      bot.createMessage(channel.id, {
-        content: botMentionResponse.replace(
-          /{userMention}/g,
-          `<@${msg.author.id}>`,
-        ),
-        allowedMentions: {
-          users: [msg.author.id],
-        },
-      });
-    }
-
-    // If configured, automatically open a new thread with a user who has pinged it
-    if (config.createThreadOnMention) {
-      const existingThread = await threads.findOpenThreadByUserId(
-        msg.author.id,
-      );
-      if (!existingThread) {
-        // Only open a thread if we don't already have one
-        const createdThread = await threads.createNewThreadForUser(msg.author, {
-          quiet: true,
-        });
-        await createdThread.postSystemMessage(
-          `This thread was opened from a bot mention in <#${channel.id}>`,
-        );
-        await createdThread.receiveUserReply(msg);
-      }
-    }
-  });
+  console.log("added listeners");
 }
 
 function initUpdateNotifications() {
@@ -439,16 +486,16 @@ function getBasePlugins() {
     "file:./src/modules/block",
     "file:./src/modules/move",
     "file:./src/modules/snippets",
-    "file:./src/modules/suspend",
+    // "file:./src/modules/suspend",
     "file:./src/modules/greeting",
-    "file:./src/modules/typingProxy",
-    "file:./src/modules/version",
-    "file:./src/modules/newthread",
+    // "file:./src/modules/typingProxy",
+    // "file:./src/modules/version",
+    // "file:./src/modules/newthread",
     "file:./src/modules/id",
     "file:./src/modules/alert",
     "file:./src/modules/joinLeaveNotification",
     "file:./src/modules/roles",
-    "file:./src/modules/notes",
+    // "file:./src/modules/notes",
   ];
 }
 
@@ -457,13 +504,12 @@ function getAllPlugins() {
   return getBasePlugins();
 }
 
-async function loadAllPlugins() {
+async function loadAllPlugins(bot: Client) {
   // Initialize command manager
   const commands = createCommandManager(bot);
 
-  // Register command aliases
-  if (config.commandAliases) {
-    for (const alias in config.commandAliases) {
+  for (const alias in config.commandAliases) {
+    if (config.commandAliases[alias]) {
       commands.addAlias(config.commandAliases[alias], alias);
     }
   }
@@ -471,6 +517,9 @@ async function loadAllPlugins() {
   // Load plugins
   const basePlugins = getBasePlugins();
   const plugins = getAllPlugins();
+
+  const pluginApi = getPluginAPI({ bot, db, config, commands });
+  await loadPlugins(plugins, pluginApi);
 
   return {
     loadedCount: plugins.length,
