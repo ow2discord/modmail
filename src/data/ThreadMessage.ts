@@ -144,9 +144,8 @@ export class ThreadMessage {
       created_at: new Date(),
       message_type: this.message_type,
       message_number: this.message_number,
-      inbox_message_id:
-        this.inbox_message_id.length > 0 ? this.inbox_message_id : null,
-      dm_message_id: this.dm_message_id.length > 0 ? this.dm_message_id : null,
+      inbox_message_id: this.inbox_message_id ? this.inbox_message_id : null,
+      dm_message_id: this.dm_message_id ? this.dm_message_id : null,
       dm_channel_id: this.dm_channel_id,
       role_name: this.role_name,
       attachments: this.attachments,

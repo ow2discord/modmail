@@ -151,11 +151,7 @@ async function messageIsOnInboxServer(bot: Client, msg: Message) {
 }
 
 function initBaseMessageHandlers(bot: Client) {
-  console.log("adding listeners");
-
   bot.on(Events.MessageCreate, async (msg) => {
-    console.log("We got a message");
-
     if (msg.author.id === bot.user?.id) return;
 
     if (
@@ -248,7 +244,6 @@ function initBaseMessageHandlers(bot: Client) {
         }
       }
     } else if (await messageIsOnInboxServer(bot, msg)) {
-      console.log("it's on the inbox server!");
       /**
        * When a moderator posts in a modmail thread...
        * 1) If alwaysReply is enabled, reply to the user
@@ -286,7 +281,6 @@ function initBaseMessageHandlers(bot: Client) {
         thread.saveChatMessageToLogs(msg);
       }
     } else if (msg.channel.type === ChannelType.DM) {
-      console.log("We got a dm:");
       /**
        * When we get a private message...
        * 1) Find the open modmail thread for this user, or create a new one
@@ -385,8 +379,8 @@ function initBaseMessageHandlers(bot: Client) {
     //        multiple edits of the same message will show the unedited original content as the "before" version in the logs.
     //        To fix this properly, we'd have to store both the original version and the current edited version in the thread message,
     //        and it's probably not worth it.
-    const oldContent = oldMessage?.content || threadMessage.body;
-    const newContent = msg.content;
+    const newContent = oldMessage?.content || threadMessage.body;
+    const oldContent = msg.content;
 
     if (threadMessage.isFromUser()) {
       const editMessage = utils.disableLinkPreviews(
@@ -468,8 +462,6 @@ function initBaseMessageHandlers(bot: Client) {
       thread.deleteChatMessageFromLogs(msg.id);
     }
   });
-
-  console.log("added listeners");
 }
 
 function initUpdateNotifications() {
@@ -486,16 +478,16 @@ function getBasePlugins() {
     "file:./src/modules/block",
     "file:./src/modules/move",
     "file:./src/modules/snippets",
-    // "file:./src/modules/suspend",
+    "file:./src/modules/suspend",
     "file:./src/modules/greeting",
-    // "file:./src/modules/typingProxy",
-    // "file:./src/modules/version",
-    // "file:./src/modules/newthread",
+    "file:./src/modules/typingProxy",
+    "file:./src/modules/version",
+    "file:./src/modules/newthread",
     "file:./src/modules/id",
     "file:./src/modules/alert",
     "file:./src/modules/joinLeaveNotification",
     "file:./src/modules/roles",
-    // "file:./src/modules/notes",
+    "file:./src/modules/notes",
   ];
 }
 

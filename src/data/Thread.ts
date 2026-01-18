@@ -1,6 +1,5 @@
 import bot from "../bot";
 import cfg from "../cfg";
-import knex from "../knex";
 import {
   chunkMessageLines,
   convertDelayStringToMS,
@@ -59,8 +58,7 @@ import {
   type SendableChannels,
 } from "discord.js";
 import { type SQL } from "bun";
-
-const { transaction } = knex;
+import type { Snippet } from "./Snippet";
 
 const escapeFormattingRegex = /[_`~*|]/g;
 
@@ -76,6 +74,9 @@ export type ThreadProps = {
   scheduled_close_id?: string;
   scheduled_close_name?: string;
   scheduled_close_silent?: number;
+  scheduled_suspend_at?: Date;
+  scheduled_suspend_id?: string;
+  scheduled_suspend_name?: string;
   alert_ids: string;
   log_storage_type: string;
   log_storage_data: object;
@@ -96,6 +97,9 @@ export class Thread {
   public scheduled_close_id: string | null;
   public scheduled_close_name: string | null;
   public scheduled_close_silent: number | null;
+  public scheduled_suspend_at: Date | null;
+  public scheduled_suspend_id: string | null;
+  public scheduled_suspend_name: string | null;
   public alert_ids!: string;
   public log_storage_type!: string;
   public log_storage_data!:
@@ -122,6 +126,9 @@ export class Thread {
     this.scheduled_close_id = props.scheduled_close_id || null;
     this.scheduled_close_name = props.scheduled_close_name || null;
     this.scheduled_close_silent = props.scheduled_close_silent || null;
+    this.scheduled_suspend_at = props.scheduled_suspend_at || null;
+    this.scheduled_suspend_id = props.scheduled_suspend_id || null;
+    this.scheduled_suspend_name = props.scheduled_suspend_name || null;
     this.alert_ids = props.alert_ids;
     this.log_storage_type = props.log_storage_type;
     this.log_storage_data =
@@ -225,18 +232,17 @@ export class Thread {
     db: SQL,
     message: ThreadMessage,
   ): Promise<ThreadMessage> {
-    message.message_number =
-      message.message_type === ThreadMessageType.ToUser
-        ? await this._getAndIncrementNextMessageNumber()
-        : message.message_number;
-
+    console.log("adding message to DB");
     const data = {
       thread_id: this.id,
       created_at: new Date().getTime(),
       is_anonymous: false,
       dm_channel_id: this.dm_channel_id,
       message_type: message.message_type,
-      message_number: message.message_number,
+      message_number:
+        message.message_type === ThreadMessageType.ToUser
+          ? await this._getAndIncrementNextMessageNumber()
+          : message.message_number,
     };
     try {
       const inserted = await db`INSERT INTO thread_messages ${db(data)}`;
@@ -247,24 +253,17 @@ export class Thread {
     }
   }
 
-  /**
-   * @returns {Promise<Number>}
-   * @private
-   */
   async _getAndIncrementNextMessageNumber(): Promise<number> {
-    return transaction(async (trx) => {
-      const nextNumberRow = await trx("threads")
-        .where("id", this.id)
-        .select("next_message_number")
-        .first();
-      const nextNumber = nextNumberRow.next_message_number;
-
-      await trx("threads")
-        .where("id", this.id)
-        .update({ next_message_number: nextNumber + 1 });
-
-      return nextNumber;
+    const next = await this.db.transaction(async (sql) => {
+      const nextNumberRow =
+        await sql`SELECT next_message_number FROM threads WHERE id = ${this.id}`;
+      if (nextNumberRow && nextNumberRow[0]) {
+        await sql`UPDATE threads SET next_message_number = ${nextNumberRow[0].next_message_number + 1}`;
+        return nextNumberRow[0].next_message_number;
+      }
     });
+
+    return next;
   }
 
   /**
@@ -334,7 +333,7 @@ export class Thread {
         ),
         (orig, trigger) => {
           const snippet = allSnippets.find(
-            (snippet) =>
+            (snippet: Snippet) =>
               snippet.trigger.toLowerCase === trigger.toLowerCase().trim(),
           );
           if (snippet == null) {
@@ -372,6 +371,7 @@ export class Thread {
     const threadMessage = new ThreadMessage({
       thread_id: this.id,
       message_type: ThreadMessageType.ToUser,
+      message_number: await this._getAndIncrementNextMessageNumber(),
       user_id: moderator.id,
       user_name: moderatorName,
       body: text,
@@ -462,6 +462,7 @@ export class Thread {
     const opts = {
       thread: this,
       message: msg,
+      quiet: true,
     };
     let hookResult;
 
@@ -470,6 +471,7 @@ export class Thread {
       user,
       opts,
       message: opts.message,
+      cancel: () => void {},
     });
     if (hookResult.cancelled) return;
 
@@ -497,6 +499,13 @@ export class Thread {
       if (savedAttachment) {
         attachmentLinks.push(savedAttachment.url);
       }
+    }
+
+    // Handle forwards
+    if (msg.reference && msg.reference.type == MessageReferenceType.Forward) {
+      const forward = msg.messageSnapshots.first()!;
+
+      messageContent = `*Forwarded message by ${forward.member?.displayName || "unknown user"}:*\n${forward.content}\n <t:${Math.round(forward.createdTimestamp / 1000)}> ${forward.url}`;
     }
 
     // Handle replies
@@ -705,8 +714,11 @@ export class Thread {
       is_anonymous: false,
     });
 
+    const user = await bot.users.fetch(this.user_id);
+    if (!user || !user.dmChannel) throw "failure!!!";
+
     const dmContent = formatters.formatSystemToUserDM(threadMessage);
-    const dmMsg = await this._sendDMToUser({ content: dmContent });
+    const dmMessage = await user.send({ content: dmContent });
 
     if (opts.postToThreadChannel !== false) {
       const inboxContent = {
@@ -718,8 +730,8 @@ export class Thread {
       threadMessage.inbox_message_id = inboxMsg.id;
     }
 
-    threadMessage.dm_channel_id = dmMsg.channel.id;
-    threadMessage.dm_message_id = dmMsg.id;
+    threadMessage.dm_channel_id = user.dmChannel?.id;
+    threadMessage.dm_message_id = dmMessage.id;
 
     await threadMessage.saveToDb(this.db);
   }
@@ -888,7 +900,7 @@ export class Thread {
       .db`UPDATE threads SET status = ${ThreadStatus.Open} WHERE id = ${this.id}`;
   }
 
-  async scheduleSuspend(time: string, user: User): Promise<void> {
+  async scheduleSuspend(time: Date, user: User): Promise<void> {
     const new_data = {
       status: ThreadStatus.Suspended,
       scheduled_suspend_at: time,

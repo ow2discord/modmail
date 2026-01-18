@@ -369,7 +369,7 @@ export function getInboxMentionAllowedMentions(): MessageMentionOptions {
 }
 
 export function postSystemMessageWithFallback(
-  channel: TextChannel,
+  channel: SendableChannels,
   thread: Thread,
   text: string,
 ) {

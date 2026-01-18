@@ -7,9 +7,15 @@ export async function getBlockStatus(
   const rows =
     await db`SELECT expires_at FROM blocked_users WHERE user_id = ${user_id} LIMIT 1`;
 
+  if (rows.length !== 1)
+    return {
+      isBlocked: false,
+      expiresAt: "",
+    };
+
   return {
-    isBlocked: rows.length === 1,
-    expiresAt: rows[0].expires_at || null,
+    isBlocked: true,
+    expiresAt: rows[0].expires_at,
   };
 }
 

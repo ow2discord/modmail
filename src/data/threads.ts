@@ -22,7 +22,8 @@ import ThreadMessage from "./ThreadMessage";
 import { getAvailableUpdate } from "./updates";
 import {
   ChannelType,
-  Role,
+  Guild,
+  VoiceChannel,
   type GuildMember,
   type Message,
   type MessageMentionOptions,
@@ -151,7 +152,10 @@ export async function createNewThreadForUser(
 
     // Find which main guilds this user is part of
     const mainGuilds = getMainGuilds();
-    const userGuildData = new Map();
+    const userGuildData = new Map<
+      string,
+      { guild: Guild; member: GuildMember }
+    >();
 
     for (const guild of mainGuilds) {
       const member = await guild.members.fetch(user.id);
@@ -175,7 +179,7 @@ export async function createNewThreadForUser(
       const isAllowed =
         userGuildData.size === 0 ||
         Array.from(userGuildData.values()).some(({ member }) => {
-          return member.joinedAt < timeRequired;
+          return (member.joinedAt || new Date()) < timeRequired;
         });
 
       if (!isAllowed) {
@@ -342,24 +346,22 @@ export async function createNewThreadForUser(
         `JOINED **${joinDate}** ago`,
       ];
 
-      if (guildData.member.voiceState.channelID) {
-        const voiceChannel = guildData.guild.channels.get(
-          guildData.member.voiceState.channelID,
+      if (guildData.member.voice.channelId) {
+        const voiceChannel = guildData.guild.channels.fetch(
+          guildData.member.voice.channelId,
         );
-        if (voiceChannel) {
+
+        if (voiceChannel && voiceChannel instanceof VoiceChannel) {
           headerItems.push(
             `VOICE CHANNEL **${escapeMarkdown(voiceChannel.name)}**`,
           );
         }
       }
 
-      if (rolesInThreadHeader && guildData.member.roles.length) {
-        const roles = guildData.member.roles
-          .map((roleId: string) => guildData.guild.roles.get(roleId))
-          .filter(Boolean);
-        headerItems.push(
-          `ROLES **${roles.map((r: Role) => r.name).join(", ")}**`,
-        );
+      await guildData.member.fetch();
+      if (rolesInThreadHeader && guildData.member.roles.cache.size > 0) {
+        const roles = guildData.member.roles.cache.map((r) => r.name);
+        headerItems.push(`ROLES **${roles.join(", ")}**`);
       }
 
       const headerStr = headerItems.join(", ");
@@ -428,9 +430,7 @@ export async function createThreadInDB(
     data.thread_number = lastThreadNumber.thread_number + 1;
   }
 
-  console.log(data);
-
-  await db`INSERT INTO threads ${db({ ...data, is_legacy: false })}`;
+  await db`INSERT INTO threads ${db({ ...data, is_legacy: false, thread_number: null })}`;
 
   return data.id;
 }
@@ -438,37 +438,37 @@ export async function createThreadInDB(
 export async function findByChannelId(
   db: SQL,
   channelId: string,
-): Promise<Thread> {
+): Promise<Thread | null> {
   const thread =
     await db`SELECT * FROM threads WHERE channel_id = ${channelId}`;
 
   if (thread && thread[0]) return new Thread(db, thread[0]);
 
-  throw "could not retrieve thread";
+  return null;
 }
 
 export async function findOpenThreadByChannelId(
   db: SQL,
   channelId: string,
-): Promise<Thread> {
+): Promise<Thread | null> {
   const thread =
     await db`SELECT * FROM threads WHERE channel_id = ${channelId} AND status = ${ThreadStatus.Open}`;
 
   if (thread && thread[0]) return new Thread(db, thread[0]);
 
-  throw "could not retrieve thread";
+  return null;
 }
 
 export async function findSuspendedThreadByChannelId(
   db: SQL,
   channelId: string,
-): Promise<Thread> {
+): Promise<Thread | null> {
   const thread =
     await db`SELECT * FROM threads WHERE channel_id = ${channelId} AND status = ${ThreadStatus.Suspended}`;
 
   if (thread && thread[0]) return new Thread(db, thread[0]);
 
-  throw "could not retrieve thread";
+  return null;
 }
 
 export async function getClosedThreadsByUserId(
@@ -481,7 +481,7 @@ export async function getClosedThreadsByUserId(
   if (threads)
     return threads.map((thread: ThreadProps) => new Thread(db, thread));
 
-  throw "could not retrieve thread";
+  throw "[getClosedThreadsByUserId] could not retrieve thread";
 }
 
 export async function getClosedThreadCountByUserId(
@@ -489,7 +489,7 @@ export async function getClosedThreadCountByUserId(
   userId: string,
 ): Promise<number> {
   const [{ thread_count }] =
-    await db`SELECT COUNT(id) AS thread_count FROM threads WHERE status = ${ThreadStatus.Closed} AND userId = ${userId}`;
+    await db`SELECT COUNT(id) AS thread_count FROM threads WHERE status = ${ThreadStatus.Closed} AND user_id = ${userId}`;
 
   return thread_count;
 }
@@ -547,7 +547,7 @@ export async function findThreadMessageByDMMessageId(
   const message =
     await db`SELECT * FROM thread_messages WHERE dm_message_id = ${dmMessageId}`;
 
-  if (message && message[0]) return new ThreadMessage(message);
+  if (message && message[0]) return new ThreadMessage(message[0]);
 
   throw "could not retrieve message";
 }

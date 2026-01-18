@@ -17,9 +17,7 @@ const bunVersion = process.versions.bun.split(".").map(parseInt) as [
 ];
 
 if (bunVersion[0] < 1 || bunVersion[1] < 3) {
-  console.error(
-    "Unsupported NodeJS version! Please install Node.js 12, 13, or 14.",
-  );
+  console.error("Unsupported Bun version! Please install Bun 1.3.0+");
   process.exit(1);
 }
 
@@ -87,7 +85,10 @@ function errorHandler(err: Error & { code?: string }) {
     const finalStack = stackLines.join("\n");
 
     if (err.code) {
+      console.log(err);
       console.error(`Error ${err.code}: ${finalStack}`);
+      console.log(err.stack);
+      console.trace();
     } else {
       console.error(`An error has occurred:`);
       console.error(err);

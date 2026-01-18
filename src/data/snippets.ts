@@ -1,34 +1,34 @@
-import { utc } from "moment";
-import knex from "../knex";
 import { Snippet } from "./Snippet";
+import { useDb } from "../db";
+
+const db = useDb();
 
 export async function get(trigger: string): Promise<Snippet | null> {
-	const snippet = await knex("snippets")
-		.whereRaw("LOWER(`trigger`) = ?", [trigger.toLowerCase()])
-		.first();
+  const snippet =
+    await db`SELECT * FROM snippets WHERE LOWER('trigger') = ${trigger.toLowerCase()} LIMIT 1`;
 
-	return snippet ? new Snippet(snippet) : null;
+  return snippet ? new Snippet(snippet[0]) : null;
 }
 
-export async function add(trigger: string, body: string, createdBy = 0) {
-	if (await get(trigger)) return;
+export async function add(trigger: string, body: string, created_by = "") {
+  if (await get(trigger)) return;
 
-	return knex("snippets").insert({
-		trigger,
-		body,
-		created_by: createdBy,
-		created_at: utc().format("YYYY-MM-DD HH:mm:ss"),
-	});
+  return await db`INSERT INTO snippets ${db({ trigger, body, created_by, created_at: new Date() })}`;
 }
 
 export async function del(trigger: string) {
-	return knex("snippets")
-		.whereRaw("LOWER(`trigger`) = ?", [trigger.toLowerCase()])
-		.delete();
+  return await db`DELETE FROM snippets WHERE LOWER('trigger') = ${trigger.toLowerCase()} LIMIT 1`;
 }
 
 export async function all() {
-	const snippets = await knex("snippets").select();
+  const snippets = await db`SELECT * FROM snippets`;
 
-	return snippets.map((s) => new Snippet(s));
+  return snippets.map(
+    (s: {
+      trigger: string;
+      body: string;
+      created_at: Date;
+      created_by: string;
+    }) => new Snippet(s),
+  );
 }

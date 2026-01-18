@@ -6,7 +6,6 @@ import * as threads from "../data/threads";
 import { messageQueue } from "../queue";
 import {
   convertDelayStringToMS,
-  //  delayStringRegex,
   getInboxGuild,
   humanizeDelay,
   isStaff,
@@ -17,8 +16,8 @@ import {
 } from "../utils";
 import type Thread from "../data/Thread";
 import { getThreadsThatShouldBeClosed } from "../data/threads";
-import type { ModuleProps } from "./modules";
 import { DMChannel, Events, GuildChannel } from "discord.js";
+import type { ModuleProps } from "../plugins";
 
 export default ({ bot, config, commands, db }: ModuleProps) => {
   async function getMessagesAmounts(thread: Thread) {
@@ -84,6 +83,7 @@ export default ({ bot, config, commands, db }: ModuleProps) => {
   // Check for threads that are scheduled to be closed and close them
   async function applyScheduledCloses() {
     const threadsToBeClosed = await getThreadsThatShouldBeClosed(db);
+
     for (const thread of threadsToBeClosed) {
       if (config.closeMessage && !thread.scheduled_close_silent) {
         const closeMessage = readMultilineConfigValue(config.closeMessage);

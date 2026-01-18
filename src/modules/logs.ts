@@ -187,7 +187,7 @@ export default ({ bot, db, config, commands, hooks }: ModuleProps) => {
   });
 
   hooks.afterThreadClose(async ({ threadId }) => {
-    const thread = await threads.findById(threadId);
-    await saveLogToStorage(thread);
+    const thread = await threads.findById(db, threadId);
+    if (thread) await saveLogToStorage(thread);
   });
 };
