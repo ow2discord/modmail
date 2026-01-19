@@ -6,8 +6,10 @@ import bot from "../bot";
 const Layout: FC = props => {
   return <html>
     <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
       <link href="/style.css" rel="stylesheet" />
-      <title>Modmail thread</title>
+      <title>{props.title}</title>
     </head>
     <body>{props.children}</body>
   </html>
@@ -19,7 +21,7 @@ export const Thread: FC<{ thread: DBThread, messages: Array<DBThreadMessage> }> 
   const data = messages[0]?.body
   messages = messages.splice(1)
 
-  return <Layout>
+  return <Layout title={`Modmail thread with ${thread.user_name}`}>
     <header class="thread-header">
       <img src="https://cdn.discordapp.com/avatars/255432387993796618/5c947997c70c1d3db8b9950db924a25a.png?size=256" width="80px" />
       <h1>Thread with {thread.user_name}</h1>
@@ -37,4 +39,16 @@ export const Thread: FC<{ thread: DBThread, messages: Array<DBThreadMessage> }> 
       </ul>
     </main>
   </Layout>
+}
+
+const extractData = (data: string): {
+  account_age: number, // duration
+  joined: number,
+  nickname: string,
+} => {
+  return {
+    account_age: 0,
+    joined: 0,
+    nickname: "",
+  }
 }
