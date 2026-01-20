@@ -51,9 +51,7 @@ export default ({ bot, config, commands, db }: ModuleProps) => {
 	async function sendCloseNotification(thread: Thread, body: string) {
 		const logCustomResponse = await getLogCustomResponse(thread);
 		if (logCustomResponse) {
-			await postLog(body);
-			// TODO: Evaluate if this is ever necessary
-			//      await postLog(logCustomResponse.content, logCustomResponse.file);
+			postLog(body);
 			return;
 		}
 
@@ -72,7 +70,7 @@ export default ({ bot, config, commands, db }: ModuleProps) => {
 
 		const logFile = await getLogFile(thread);
 		if (logFile) {
-			postLog(body, logFile);
+			postLog(body, [logFile]);
 			return;
 		}
 
@@ -219,8 +217,7 @@ export default ({ bot, config, commands, db }: ModuleProps) => {
 	);
 
 	// Auto-close threads if their channel is deleted
-	bot.on(Events.ChannelDelete, async (ch) => {
-		const channel = await ch.fetch();
+	bot.on(Events.ChannelDelete, async (channel) => {
 		if (!(channel instanceof GuildChannel)) return;
 		if (channel.guild.id !== getInboxGuild().id) return;
 

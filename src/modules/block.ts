@@ -11,7 +11,9 @@ export default ({ bot, config, commands }: ModuleProps) => {
 
 	async function removeExpiredBlocks() {
 		const expiredBlocks = await blocked.getExpiredBlocks();
-		const logChannel = getLogChannel();
+		if (expiredBlocks.length === 0) return;
+
+		const logChannel = await getLogChannel();
 		for (const userId of expiredBlocks) {
 			await blocked.unblock(userId);
 			logChannel.send({

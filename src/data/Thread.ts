@@ -143,21 +143,6 @@ export class Thread {
 		else this.metadata = {};
 	}
 
-	// getSQLProps() {
-	//   return Object.entries(this).reduce(
-	//     (obj, [key, value]) => {
-	//       if (typeof value === "function") return obj;
-	//       if (typeof value === "object" && value != null) {
-	//         obj[key] = JSON.stringify(value);
-	//       } else {
-	//         obj[key] = value;
-	//       }
-	//       return obj;
-	//     },
-	//     {} as Record<string, any>,
-	//   );
-	// }
-
 	async _sendDMToUser(content: MessageCreateOptions): Promise<Message> {
 		const user = await bot.users.fetch(this.user_id);
 
@@ -175,9 +160,6 @@ export class Thread {
 			const channel = await bot.channels.fetch(this.channel_id);
 			if (!channel || !channel?.isSendable())
 				throw "cannot send to an unsendable channel";
-			// const textContent =
-			//   typeof content === "string" ? content : content.content;
-			// const contentObj = typeof content === "string" ? {} : content;
 
 			if (message.content && message.content.length > 0) {
 				// Text content is included, chunk it and send it as individual messages.
@@ -267,12 +249,6 @@ export class Thread {
 		return next;
 	}
 
-	/**
-	 * Adds the specified moderator to the thread's alert list after config.autoAlertDelay
-	 * @param {string} modId
-	 * @returns {Promise<void>}
-	 * @private
-	 */
 	async _startAutoAlertTimer(modId: string): Promise<void> {
 		if (this._autoAlertTimeout) clearTimeout(this._autoAlertTimeout);
 
@@ -437,6 +413,7 @@ export class Thread {
 			...inboxContent,
 			files,
 		});
+
 		if (inboxMessage) {
 			threadMessage.inbox_message_id = inboxMessage.id;
 		}

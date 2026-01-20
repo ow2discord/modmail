@@ -3,7 +3,7 @@ import bot from "./bot";
 import config from "./cfg";
 import { ThreadMessageType } from "./data/constants";
 import type Thread from "./data/Thread";
-import type ThreadMessage from "./data/ThreadMessage";
+import ThreadMessage from "./data/ThreadMessage";
 import * as utils from "./utils";
 
 const defaultFormatters = {
@@ -69,7 +69,13 @@ const defaultFormatters = {
 		const originalThreadMessage = threadMessage.getMetadataValue(
 			"originalThreadMessage",
 		);
-		const newBody = threadMessage.getMetadataValue("newBody");
+		if (
+			!originalThreadMessage ||
+			!(originalThreadMessage instanceof ThreadMessage)
+		)
+			return;
+
+		const newBody = threadMessage.getMetadataValue("newBody") as string;
 
 		let content = `**${originalThreadMessage.user_name}** (\`${originalThreadMessage.user_id}\`) edited reply \`${originalThreadMessage.message_number}\``;
 
@@ -92,6 +98,11 @@ const defaultFormatters = {
 		const originalThreadMessage = threadMessage.getMetadataValue(
 			"originalThreadMessage",
 		);
+		if (
+			!originalThreadMessage ||
+			!(originalThreadMessage instanceof ThreadMessage)
+		)
+			return;
 		let content = `**${originalThreadMessage.user_name}** (\`${originalThreadMessage.user_id}\`) deleted reply \`${originalThreadMessage.message_number}\``;
 
 		if (originalThreadMessage.body.length < 200) {
@@ -169,6 +180,16 @@ const defaultFormatters = {
 				}
 			}
 
+			const originalThreadMessage = message.getMetadataValue(
+				"originalThreadMessage",
+			);
+
+			if (
+				!originalThreadMessage ||
+				!(originalThreadMessage instanceof ThreadMessage)
+			)
+				return message.body;
+
 			if (message.message_type === ThreadMessageType.FromUser) {
 				line += ` [FROM USER] [${message.user_name}] ${message.body}`;
 			} else if (message.message_type === ThreadMessageType.ToUser) {
@@ -203,16 +224,10 @@ const defaultFormatters = {
 			} else if (message.message_type === ThreadMessageType.Command) {
 				line += ` [COMMAND] [${message.user_name}] ${message.body}`;
 			} else if (message.message_type === ThreadMessageType.ReplyEdited) {
-				const originalThreadMessage = message.getMetadataValue(
-					"originalThreadMessage",
-				);
 				line += ` [REPLY EDITED] ${originalThreadMessage.user_name} edited reply ${originalThreadMessage.message_number}:`;
 				line += `\n\nBefore:\n${originalThreadMessage.body}`;
 				line += `\n\nAfter:\n${message.getMetadataValue("newBody")}`;
 			} else if (message.message_type === ThreadMessageType.ReplyDeleted) {
-				const originalThreadMessage = message.getMetadataValue(
-					"originalThreadMessage",
-				);
 				line += ` [REPLY DELETED] ${originalThreadMessage.user_name} deleted reply ${originalThreadMessage.message_number}:`;
 				line += `\n\n${originalThreadMessage.body}`;
 			} else {
@@ -227,8 +242,7 @@ const defaultFormatters = {
 			return line;
 		});
 
-		const openedAt = moment(thread.created_at).format("YYYY-MM-DD HH:mm:ss");
-		const header = `# Modmail thread #${thread.thread_number} with ${thread.user_name} (${thread.user_id}) started at ${openedAt}. All times are in UTC+0.`;
+		const header = `# Modmail thread #${thread.thread_number} with ${thread.user_name} (${thread.user_id}) started at <t:${thread.created_at.getTime()}:S>. All times are in UTC+0.`;
 
 		const fullResult = `${header}\n\n${lines.join("\n")}`;
 

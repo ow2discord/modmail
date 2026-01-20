@@ -198,7 +198,7 @@ function initBaseMessageHandlers(bot: Client) {
 			}
 
 			for (const block of utils.chunkMessageLines(content)) {
-				const logChannel = utils.getLogChannel();
+				const logChannel = await utils.getLogChannel();
 				logChannel.send({ content: block, allowedMentions });
 			}
 

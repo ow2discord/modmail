@@ -11,7 +11,6 @@ import {
 	VoiceChannel,
 } from "discord.js";
 import humanizeDuration from "humanize-duration";
-import { slugify } from "transliteration";
 import { v4 } from "uuid";
 import cfg from "../cfg";
 import config from "../cfg";
@@ -29,6 +28,7 @@ import {
 	mentionRolesToAllowedMentions,
 	mentionRolesToMention,
 	readMultilineConfigValue,
+	slugify,
 } from "../utils";
 import { ThreadStatus } from "./constants";
 import { findNotesByUserId } from "./notes";
@@ -512,18 +512,16 @@ export async function findOrCreateThreadForUser(
 }
 
 export async function getThreadsThatShouldBeClosed(db: SQL) {
-	const now = Date.now();
 	const threads =
-		await db`SELECT * FROM threads WHERE status = ${ThreadStatus.Open} AND scheduled_close_at IS NOT NULL AND scheduled_close_at <= ${now}`;
+		await db`SELECT * FROM threads WHERE status = ${ThreadStatus.Open} AND scheduled_close_at IS NOT NULL AND scheduled_close_at <= now()`;
 
 	return threads.map((thread: ThreadProps) => new Thread(db, thread));
 }
 
 export async function getThreadsThatShouldBeSuspended(db: SQL) {
 	try {
-		const now = Date.now();
 		const threads =
-			await db`SELECT * FROM threads WHERE status = ${ThreadStatus.Open} AND scheduled_suspend_at IS NOT NULL AND scheduled_suspend_at <= ${now}`;
+			await db`SELECT * FROM threads WHERE status = ${ThreadStatus.Open} AND scheduled_suspend_at IS NOT NULL AND scheduled_suspend_at <= now()`;
 
 		return threads.map((thread: ThreadProps) => new Thread(db, thread));
 	} catch (e) {

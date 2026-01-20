@@ -56,7 +56,7 @@ function errorHandler(err: Error & { code?: string }) {
 
 	if (err instanceof BotError) {
 		// Leave out stack traces for BotErrors (the message has enough info)
-		console.error(`Error: ${err.message}`);
+		// console.error(`Error: ${err.message}`);
 	} else if (err.message === "Disallowed intents specified") {
 		let fullMessage = "Error: Disallowed intents specified";
 		fullMessage += "\n\n";
@@ -85,10 +85,7 @@ function errorHandler(err: Error & { code?: string }) {
 		const finalStack = stackLines.join("\n");
 
 		if (err.code) {
-			console.log(err);
 			console.error(`Error ${err.code}: ${finalStack}`);
-			console.log(err.stack);
-			console.trace();
 		} else {
 			console.error(`An error has occurred:`);
 			console.error(err);

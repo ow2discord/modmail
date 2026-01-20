@@ -38,7 +38,7 @@ export async function block(
     (user_id, user_name, blocked_by, blocked_at, expires_at) VALUES
     (${user_id}, ${user_name}, ${blocked_by}, now(), CASE
       WHEN ${expires_at} IS NULL THEN NULL
-      ELSE THEN DATE_ADD(NOW(), INTERVAL ${expires_at_micro} MICROSECOND)
+      ELSE DATE_ADD(NOW(), INTERVAL ${expires_at_micro} MICROSECOND)
     END
   )`;
 }

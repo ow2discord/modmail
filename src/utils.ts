@@ -1,5 +1,6 @@
 import {
 	type Attachment,
+	type AttachmentBuilder,
 	type Channel,
 	ChannelType,
 	type Client,
@@ -64,9 +65,11 @@ export function getMainGuilds(): Array<Guild> {
  * Returns the designated log channel, or the default channel if none is set
  * @returns {TextChannel}
  */
-export function getLogChannel(): TextChannel {
+export async function getLogChannel(): Promise<TextChannel> {
 	const _inboxGuild = getInboxGuild();
-	const _logChannel = _inboxGuild.channels.cache.get(config.logChannelId || "");
+	const _logChannel = await _inboxGuild.channels.fetch(
+		config.logChannelId || "",
+	);
 
 	if (!_logChannel) {
 		throw new BotError("Log channel (logChannelId) not found!");
@@ -86,11 +89,14 @@ export function getLogChannel(): TextChannel {
 
 export function postLog(
 	content: MessageCreateOptions | string,
-	files?: Array<Attachment>,
+	files?: Array<AttachmentBuilder>,
 ) {
 	const messageOptions =
 		typeof content === "string" ? { content, files } : { ...content, files };
-	return getLogChannel().send(messageOptions);
+
+	getLogChannel().then((channel) => {
+		channel.send(messageOptions);
+	});
 }
 
 export function postError(channel: Channel, content: string, opts = {}) {
