@@ -488,20 +488,28 @@ export class Thread {
 			}
 		}
 
+		const embeds = msg.embeds;
+
 		// Handle forwards
 		if (msg.reference && msg.reference.type === MessageReferenceType.Forward) {
 			const forward = msg.messageSnapshots.first();
 			if (!forward) return;
 
-			let textContent = forward.content;
+			for (const embed of forward.embeds) {
+				embeds.push(embed);
+			}
 
+			let textContent = forward.content;
 			if (forward.stickers.size > 0) {
 				textContent += forward.stickers
 					.map((sticker) => {
-						return `*Sent sticker "${sticker.name}":* https://media.discordapp.net/stickers/${sticker.id}.webp?size=160`;
+						return `Sticker **[${sticker.name}](https://media.discordapp.net/stickers/${sticker.id}.webp?size=160)**`;
 					})
 					.join("\n");
 			}
+
+			if (textContent.length === 0)
+				textContent = "Message contains only embeds";
 			messageContent = `\n\n> -# *↪ Forwarded from ${forward.guild?.name || "direct messages"}*\n> ${textContent}\n> -# [Source](${forward.url})  •  <t:${Math.round(forward.createdTimestamp / 1000)}:f>`;
 		}
 
@@ -577,6 +585,9 @@ export class Thread {
 			dm_channel_id: msg.channel.id,
 			attachments: attachmentLinks,
 			small_attachments: smallAttachmentLinks,
+			metadata: {
+				embeds,
+			},
 		});
 
 		// Show user reply in the inbox thread
@@ -593,6 +604,7 @@ export class Thread {
 		const inboxMessage = await this._postToThreadChannel({
 			...inboxContent,
 			files: attachmentFiles,
+			embeds,
 		});
 		if (inboxMessage) {
 			threadMessage.inbox_message_id = inboxMessage.id;
@@ -801,7 +813,7 @@ export class Thread {
 
 		if (data) return new ThreadMessage(data);
 
-		throw "could not get thread message";
+		throw "[getThreadMessageForMessageId@Thread.ts:804] could not get thread message";
 	}
 
 	async findThreadMessageByDmMessageId(messageId: string) {
@@ -810,7 +822,7 @@ export class Thread {
 
 		if (data && data.length === 1) return new ThreadMessage(data[0]);
 
-		throw "could not get thread message";
+		throw "[findThreadMessageByDmMessageId@Thread.ts:813] could not get thread message";
 	}
 
 	async getLatestThreadMessage(): Promise<ThreadMessage> {
@@ -824,7 +836,7 @@ export class Thread {
 
 		if (data && data.length === 1) return new ThreadMessage(data[0]);
 
-		throw "could not get thread message";
+		throw "[getLatestThreadMessage@Thread.ts:827] could not get thread message";
 	}
 
 	async findThreadMessageByMessageNumber(
@@ -835,7 +847,7 @@ export class Thread {
 
 		if (data && data.length === 1) return new ThreadMessage(data[0]);
 
-		throw "could not get thread message";
+		throw "[findThreadMessageByMessageNumber@Thread.ts:838] could not get thread message";
 	}
 
 	async close(suppressSystemMessage = false, silent = false): Promise<void> {
@@ -1150,7 +1162,7 @@ export class Thread {
 		);
 
 		let isFirst = true;
-		for (const [_, msg] of messages) {
+		for (const [_, msg] of messages.reverse()) {
 			await this.receiveUserReply(msg, !isFirst);
 			isFirst = false;
 		}
@@ -1163,6 +1175,14 @@ export class Thread {
 		const dmChannel = await user.createDM();
 
 		return dmChannel;
+	}
+
+	public async getThreadChannel(): Promise<SendableChannels> {
+		const channel = await bot.channels.fetch(this.channel_id);
+
+		if (channel?.isSendable()) return channel;
+
+		throw "it was impossible to retrieve the thread channel";
 	}
 }
 

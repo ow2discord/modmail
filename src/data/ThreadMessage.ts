@@ -14,7 +14,7 @@ export type ThreadMessageProps = {
 	dm_message_id?: string;
 	dm_channel_id?: string;
 	small_attachments?: Array<string>;
-	metadata?: string | Record<string | number | symbol, unknown>;
+	metadata?: string | Record<string, unknown>;
 	inbox_message_id?: string;
 	created_at?: Date;
 };
@@ -36,7 +36,7 @@ export class ThreadMessage {
 	public inbox_message_id: string = "";
 	public created_at: Date;
 	public use_legacy_format = false;
-	public metadata: Record<string, string | ThreadMessage> = {};
+	public metadata: Record<string, unknown> = {};
 
 	constructor(props: ThreadMessageProps) {
 		this.thread_id = props.thread_id;
@@ -60,58 +60,20 @@ export class ThreadMessage {
 			this.attachments = [];
 		}
 
-		if (props.small_attachments) {
-			if (typeof props.small_attachments === "string") {
-				this.small_attachments = JSON.parse(props.small_attachments);
-			}
-		} else {
-			this.small_attachments = [];
-		}
+		if (props.small_attachments)
+			this.small_attachments =
+				typeof props.small_attachments === "string"
+					? JSON.parse(props.small_attachments)
+					: props.small_attachments;
 
-		if (props.metadata) {
-			if (typeof props.metadata === "string") {
-				this.metadata = JSON.parse(props.metadata);
-			}
-		}
+		if (props.metadata)
+			this.metadata =
+				typeof props.metadata === "string"
+					? JSON.parse(props.metadata)
+					: props.metadata;
 	}
 
-	// getSQLProps(): { message_type: number; message_number: number } & Record<
-	//   string,
-	//   any
-	// > {
-	//   const out: { message_type: number; message_number: number } & Record<
-	//     string,
-	//     any
-	//   > = {
-	//     message_type: this.message_type,
-	//     message_number: this.message_number,
-	//   };
-	//
-	//   return Object.entries(this).reduce((obj, [key, value]) => {
-	//     if (typeof value === "function") return obj;
-	//     if (typeof value === "object" && value != null) {
-	//       obj[key] = JSON.stringify(value);
-	//     } else {
-	//       obj[key] = value;
-	//     }
-	//     return obj;
-	//   }, out);
-	// }
-
-	// async setMetadataValue(key: string, value: string | ThreadMessage) {
-	//   this.metadata = this.metadata || {};
-	//   this.metadata[key] = value;
-	//
-	//   if (this.id) {
-	//     await knex("thread_messages")
-	//       .where("id", this.id)
-	//       .update({
-	//         metadata: JSON.stringify(this.metadata),
-	//       });
-	//   }
-	// }
-
-	getMetadataValue(key: string): string | ThreadMessage | null | undefined {
+	getMetadataValue(key: string): unknown {
 		return this.metadata ? this.metadata[key] : null;
 	}
 
@@ -136,6 +98,8 @@ export class ThreadMessage {
 	}
 
 	async saveToDb(db: SQL) {
+		console.log(this.metadata);
+
 		const messageData = {
 			thread_id: this.thread_id,
 			user_id: this.user_id,
@@ -151,7 +115,7 @@ export class ThreadMessage {
 			attachments: this.attachments,
 			small_attachments: this.small_attachments,
 			use_legacy_format: this.use_legacy_format,
-			metadata: this.metadata,
+			metadata: JSON.stringify(this.metadata),
 			body: this.body,
 		};
 

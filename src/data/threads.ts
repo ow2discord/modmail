@@ -408,7 +408,7 @@ export async function createNewThreadForUser(
 		}
 
 		if (updateNotifications) {
-			const availableUpdate = await getAvailableUpdate();
+			const availableUpdate = await getAvailableUpdate(db);
 			if (availableUpdate) {
 				await newThread.postNonLogMessage({
 					content: `📣 New bot version available (${availableUpdate})`,
@@ -439,6 +439,29 @@ export async function createThreadInDB(
 	await db`INSERT INTO threads ${db({ ...data, is_legacy: false })}`;
 
 	return data.id;
+}
+
+/**
+ * Notably, this function _also_ impacts thread messages, resetting every reference to the thread id.
+ */
+export async function resetThreadId(db: SQL, fromId: string): Promise<string> {
+	const newId = v4();
+
+	await db.transaction(async (sql) => {
+		// Temporarily disable foreign key checks
+		await sql`SET FOREIGN_KEY_CHECKS = 0`;
+
+		try {
+			// Update in reverse order: children first, then parent
+			await sql`UPDATE thread_messages SET thread_id = ${newId} WHERE thread_id = ${fromId}`;
+			await sql`UPDATE threads SET id = ${newId} WHERE id = ${fromId}`;
+		} finally {
+			// Re-enable foreign key checks
+			await sql`SET FOREIGN_KEY_CHECKS = 1`;
+		}
+	});
+
+	return newId;
 }
 
 export async function findByChannelId(
@@ -547,13 +570,11 @@ export async function getAllOpenThreads(db: SQL): Promise<Thread[]> {
 export async function findThreadMessageByDMMessageId(
 	db: SQL,
 	dmMessageId: string,
-): Promise<ThreadMessage> {
+): Promise<ThreadMessage | null> {
 	const message =
 		await db`SELECT * FROM thread_messages WHERE dm_message_id = ${dmMessageId}`;
 
 	if (message?.[0]) return new ThreadMessage(message[0]);
 
-	console.log(typeof db, typeof dmMessageId);
-	console.trace();
-	throw `[findThreadMessageByDMMessageId@threads.ts:549] could not retrieve message for dm ${dmMessageId}`;
+	return null;
 }
