@@ -14,7 +14,7 @@ import * as blocked from "./data/blocked";
 import { ACCIDENTAL_THREAD_MESSAGES } from "./data/constants";
 import * as threads from "./data/threads";
 import { getAllOpenThreads } from "./data/threads";
-import * as updates from "./data/updates";
+import { refreshVersionsLoop } from "./data/updates";
 import { useDb } from "./db";
 import { formatters } from "./formatters";
 import { getPluginAPI, loadPlugins } from "./plugins";
@@ -372,16 +372,12 @@ function initBaseMessageHandlers(bot: Client) {
 			db,
 			msg.id,
 		);
-		if (!threadMessage) {
-			return;
-		}
+		if (!threadMessage) return;
 
 		const thread = await threads.findById(db, threadMessage.thread_id);
 		if (!thread) return;
 
-		if (thread.isClosed()) {
-			return;
-		}
+		if (thread.isClosed()) return;
 
 		// FIXME: There is a small bug here. When we don't have the old message cached (i.e. when we use threadMessage.body as oldContent),
 		//        multiple edits of the same message will show the unedited original content as the "before" version in the logs.
@@ -477,28 +473,29 @@ function initBaseMessageHandlers(bot: Client) {
 
 function initUpdateNotifications() {
 	if (config.updateNotifications) {
-		updates.refreshVersionsLoop();
+		refreshVersionsLoop(db);
 	}
 }
 
 function getBasePlugins() {
 	return [
-		"file:./src/modules/reply",
-		"file:./src/modules/close",
-		"file:./src/modules/logs",
-		"file:./src/modules/block",
-		"file:./src/modules/move",
-		"file:./src/modules/snippets",
-		"file:./src/modules/suspend",
-		"file:./src/modules/greeting",
-		"file:./src/modules/typingProxy",
-		"file:./src/modules/version",
-		"file:./src/modules/newthread",
-		"file:./src/modules/id",
-		"file:./src/modules/alert",
-		"file:./src/modules/joinLeaveNotification",
-		"file:./src/modules/roles",
-		"file:./src/modules/notes",
+		"file:./src/plugins/reply",
+		"file:./src/plugins/resetId",
+		"file:./src/plugins/close",
+		"file:./src/plugins/logs",
+		"file:./src/plugins/block",
+		"file:./src/plugins/move",
+		"file:./src/plugins/snippets",
+		"file:./src/plugins/suspend",
+		"file:./src/plugins/greeting",
+		"file:./src/plugins/typingProxy",
+		"file:./src/plugins/version",
+		"file:./src/plugins/newthread",
+		"file:./src/plugins/id",
+		"file:./src/plugins/alert",
+		"file:./src/plugins/joinLeaveNotification",
+		"file:./src/plugins/roles",
+		"file:./src/plugins/notes",
 	];
 }
 

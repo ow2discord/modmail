@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { serve } from "bun";
+import { doMigration } from "../migrate";
 import { BotError } from "./BotError";
 import bot from "./bot";
 import { getPrettyVersion } from "./botVersion";
 import cfg from "./cfg";
-import knex from "./knex";
 import { start } from "./main";
 import { PluginInstallationError } from "./PluginInstallationError";
 import web from "./web";
@@ -111,14 +111,15 @@ modules.forEach((mod) => {
 
 (async () => {
 	// Make sure the database is up to date
-	const [_, newMigrations] = await knex.migrate.list();
-	if (newMigrations.length > 0) {
-		console.log(
-			"Updating database. This can take a while. Don't close the bot!",
-		);
-		await knex.migrate.latest();
-		console.log("Done!");
-	}
+	const _newMigrations = doMigration();
+	// const [_, newMigrations] = await knex.migrate.list();
+	// if (newMigrations.length > 0) {
+	// 	console.log(
+	// 		"Updating database. This can take a while. Don't close the bot!",
+	// 	);
+	// 	await knex.migrate.latest();
+	// 	console.log("Done!");
+	// }
 
 	// // Start the bot
 	start(bot);

@@ -6,6 +6,7 @@ export default ({ commands }: ModuleProps) => {
 		"id",
 		[],
 		async (_msg, _args, thread) => {
+			if (!thread) return;
 			thread.postSystemMessage(thread.user_id);
 		},
 		{ allowSuspended: true },
@@ -15,6 +16,7 @@ export default ({ commands }: ModuleProps) => {
 		"dm_channel_id",
 		[],
 		async (_msg, _args, thread) => {
+			if (!thread) return;
 			const dmChannel = await thread.getDMChannel();
 			thread.postSystemMessage(dmChannel.id);
 		},
@@ -25,8 +27,9 @@ export default ({ commands }: ModuleProps) => {
 		"message",
 		"<messageNumber:number>",
 		async (_msg, args, thread) => {
+			if (!thread) return;
 			const threadMessage = await thread.findThreadMessageByMessageNumber(
-				args.messageNumber,
+				args.messageNumber as number,
 			);
 			if (!threadMessage) {
 				thread.postSystemMessage("No message in this thread with that number");
