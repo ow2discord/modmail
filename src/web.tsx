@@ -17,63 +17,64 @@ app.use(cors());
 app.use(secureHeaders());
 
 app.get("/style.css", async (_) => {
-	const attachmentFile = file("./src/web/style.css");
+  const attachmentFile = file("./src/web/style.css");
 
-	return new Response(attachmentFile, {
-		headers: {
-			"Content-Type": "text/css",
-		},
-	});
+  return new Response(attachmentFile, {
+    headers: {
+      "Content-Type": "text/css",
+    },
+  });
 });
 
 app.get("/logs/:id", async (c) => {
-	const { id } = c.req.param();
-	const thread = await findById(db, id);
+  const { id } = c.req.param();
+  const thread = await findById(db, id);
 
-	if (!thread) return new Response("Thread not found", { status: 404 });
+  if (!thread) return new Response("Thread not found", { status: 404 });
 
-	const messages = await thread.getThreadMessages();
+  const messages = await thread.getThreadMessages();
 
-	const params = new URL(c.req.url).searchParams;
-	const simple = params.get("simple") !== null;
-	const verbose = params.get("verbose") !== null;
+  const params = new URL(c.req.url).searchParams;
+  const simple = params.get("simple") !== null;
+  const verbose = params.get("verbose") !== null;
 
-	if (simple || verbose) {
-		const formattedResult = formatters.formatLog(thread, messages, {
-			simple,
-			verbose,
-		});
+  if (c.req.query("new") !== undefined) {
+    return c.html(<Thread thread={thread} messages={messages} />);
+  }
 
-		// For now...
-		const contentType = "text/plain; charset=UTF-8";
+  // if (simple || verbose) {
+  const formattedResult = formatters.formatLog(thread, messages, {
+    simple,
+    verbose,
+  });
 
-		return new Response(formattedResult.content, {
-			headers: { "Content-Type": contentType },
-		});
-	}
+  const contentType = "text/plain; charset=UTF-8";
 
-	return c.html(<Thread thread={thread} messages={messages} />);
+  return new Response(formattedResult.content, {
+    headers: { "Content-Type": contentType },
+  });
+
 });
 
 app.get("/attachments/:id/:filename", async (c) => {
-	const { id, filename } = c.req.param();
+  const { id, filename } = c.req.param();
 
-	if (!/^[0-9]+$/.test(id) || !/^[0-9a-z._-]+$/i.test(filename))
-		return c.text("One or more parameters were malformed.");
+  if (!/^[0-9]+$/.test(id) || !/^[0-9a-z._-]+$/i.test(filename))
+    return c.text("One or more parameters were malformed.");
 
-	const attachmentPath = getLocalAttachmentPath(id);
-	const attachmentFile = file(attachmentPath);
-	const exists = await attachmentFile.exists();
+  const attachmentPath = getLocalAttachmentPath(id);
+  const attachmentFile = file(attachmentPath);
+  const exists = await attachmentFile.exists();
 
-	if (!exists) return c.notFound();
+  if (!exists) return c.notFound();
 
-	const contentType = getMimeType(filename);
+  const contentType = getMimeType(filename);
 
-	return new Response(attachmentFile, {
-		headers: {
-			"Content-Type": contentType,
-		},
-	});
+  return new Response(attachmentFile, {
+    headers: {
+      "Content-Type": contentType,
+    },
+  });
 });
 
 export default app;
