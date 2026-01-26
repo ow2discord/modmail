@@ -6,11 +6,6 @@ import config from "../cfg";
 import * as utils from "../utils";
 import { getSelfUrl } from "../utils";
 
-const attachmentSavePromises: Record<
-  string,
-  Promise<{ url: string } | undefined>
-> = {};
-
 const attachmentStorageTypes: Record<
   string,
   (attachment: Attachment) => Promise<{ url: string }>
@@ -173,26 +168,34 @@ export async function createDiscordAttachmentMessage(
   }
 }
 
-export const saveAttachment = (attachment: Attachment) => {
-  if (attachmentSavePromises[attachment.id]) {
-    return attachmentSavePromises[attachment.id];
-  }
+export const saveAttachment = async (
+  attachment: Attachment,
+): Promise<string> => {
+  const store = attachmentStorageTypes[config.attachmentStorage];
 
-  if (attachmentStorageTypes[config.attachmentStorage]) {
-    attachmentSavePromises[attachment.id] = Promise.resolve(
-      attachmentStorageTypes[config.attachmentStorage]?.(attachment),
-    );
-  } else {
-    throw new Error(
-      `Unknown attachment storage option: ${config.attachmentStorage}`,
-    );
-  }
+  if (store) return (await store(attachment)).url;
 
-  attachmentSavePromises[attachment.id]?.then(() => {
-    delete attachmentSavePromises[attachment.id];
-  });
+  return attachment.url;
 
-  return attachmentSavePromises[attachment.id];
+  // if (attachmentSavePromises[attachment.id]) {
+  //   return attachmentSavePromises[attachment.id];
+  // }
+  //
+  // if (attachmentStorageTypes[config.attachmentStorage]) {
+  //   attachmentSavePromises[attachment.id] = Promise.resolve(
+  //     attachmentStorageTypes[config.attachmentStorage]?.(attachment),
+  //   );
+  // } else {
+  //   throw new Error(
+  //     `Unknown attachment storage option: ${config.attachmentStorage}`,
+  //   );
+  // }
+  //
+  // attachmentSavePromises[attachment.id]?.then(() => {
+  //   delete attachmentSavePromises[attachment.id];
+  // });
+  //
+  // return attachmentSavePromises[attachment.id];
 };
 
 export function addStorageType(

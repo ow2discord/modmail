@@ -26,10 +26,6 @@ console.log(
   `Starting Modmail ${getPrettyVersion()} on Bun ${process.versions.bun} (${process.arch})`,
 );
 
-console.log(
-  `mysql://${cfg.mysqlOptions.user}:${cfg.mysqlOptions.password}@${cfg.mysqlOptions.host}:${cfg.mysqlOptions.port}/${cfg.mysqlOptions.database}?timezone=Z`,
-);
-
 // Verify node modules have been installed
 
 try {
