@@ -4,7 +4,43 @@ import { ThreadMessageType } from "../data/constants";
 import type { Thread as DBThread } from "../data/Thread";
 import type { ThreadMessage as DBThreadMessage } from "../data/ThreadMessage";
 import type { Embed } from "discord.js";
-import { marked } from "marked";
+import { marked, type TokenizerAndRendererExtension } from "marked";
+
+const smallHeading: TokenizerAndRendererExtension = {
+  name: 'smallHeading',
+  level: 'block',
+  start(src) {
+    return src.match(/^-#/)?.index;
+  },
+  tokenizer(src) {
+    const rule = /^-# +(.+?)(?:\n|$)/;
+    const match = rule.exec(src);
+
+    if (match) {
+      const token = {
+        type: 'smallHeading',
+        raw: match[0],
+        text: (match[1] || "").trim(),
+        tokens: []
+      };
+
+      // Process inline tokens (for bold, italic, links, etc.)
+      this.lexer.inline(token.text, token.tokens);
+      return token;
+    }
+  },
+  renderer(token) {
+    const text = this.parser.parseInline(token.tokens || []);
+    return `<h6 class="small-heading">${text}</h6>\n`;
+  }
+};
+
+// Apply the extension
+marked.use({ extensions: [smallHeading] });
+
+const convertMarkdown = async (input: string): Promise<string> => {
+  return await marked(input)
+}
 
 const Layout: FC = (props) => {
   return (
@@ -70,7 +106,7 @@ export const Thread: FC<{
             </h5>
             <ul class="server-roles">
               {server.roles.map((role) => (
-                <li data-role={role.toLowerCase()}>{role}</li>
+                <li class="msg-row" data-role={role.toLowerCase()}>{role}</li>
               ))}
             </ul>
           </div>
@@ -78,7 +114,7 @@ export const Thread: FC<{
       </header>
       <main class="thread">
         {/* <pre>{JSON.stringify(thread, null, 2)}</pre> */}
-        <ul class="threadMessages">
+        <ul class="thread-messages">
           {collapsedMessages.map((msg) => {
             switch (msg.message_type) {
               case ThreadMessageType.System | ThreadMessageType.SystemToUser:
@@ -102,12 +138,12 @@ export const Thread: FC<{
   );
 };
 
-const UserMessage: FC<{ msg: CollapsedThreadMessage }> = ({ msg }) => {
+const UserMessage: FC<{ msg: CollapsedThreadMessage }> = async ({ msg }) => {
   return (
-    <li data-message-type="from-user">
-      <figure class="msgAvatar"></figure>
-      <div class="msgContent">
-        <div class="msgHeader">
+    <li class="msg-row" data-message-type="from-user">
+      <figure class="msg-avatar" style="background-image: url('https://cdn.discordapp.com/avatars/255432387993796618/5c947997c70c1d3db8b9950db924a25a.png?size=256')"></figure>
+      <div class="msg-content">
+        <div class="msg-header">
           <p data-tooltip={msg.user_id}>
             {msg.user_name}
             <UserIcon />
@@ -115,9 +151,9 @@ const UserMessage: FC<{ msg: CollapsedThreadMessage }> = ({ msg }) => {
           </p>
           <time>{msg.created_at.toLocaleString()}</time>
         </div>
-        <div class="msgBody">
-          {msg.bodies.map((body) => (
-            <p>{body}</p>
+        <div class="msg-body">
+          {msg.bodies.map(async (body) => (
+            <article dangerouslySetInnerHTML={{ __html: await convertMarkdown(body) }}></article>
           ))}
           {msg.metadata.embeds && <Embeds embeds={msg.metadata.embeds as Array<Embed>} />}
         </div>
@@ -129,7 +165,7 @@ const UserMessage: FC<{ msg: CollapsedThreadMessage }> = ({ msg }) => {
 const Embeds: FC<{ embeds: Array<Embed> }> = ({ embeds }) => {
   return <>
     {embeds.map((embed) => {
-      return <div class="msg-embed" style={{ '--embed-color': embed.hexColor }}>
+      return <div class="msg-embed" style={{ '--embed-color': `#${(embed.color || 0).toString(16)}` }}>
         {embed.title && <h4>{embed.title}</h4>}
         {embed.description && <p>desc: {embed.description}</p>}
         <ul>{embed.fields.map(async field => (
@@ -138,7 +174,6 @@ const Embeds: FC<{ embeds: Array<Embed> }> = ({ embeds }) => {
             <div dangerouslySetInnerHTML={{ __html: await marked(field.value) }}></div>
           </li>
         ))}</ul>
-        {JSON.stringify(embed.fields, null, 2)}
         {embed.footer && <footer>
           <p>{embed.footer.text}</p>
         </footer>}
@@ -149,10 +184,10 @@ const Embeds: FC<{ embeds: Array<Embed> }> = ({ embeds }) => {
 
 const OutgoingMessage: FC<{ msg: CollapsedThreadMessage }> = ({ msg }) => {
   return (
-    <li data-message-type="from-user">
-      <figure class="msgAvatar"></figure>
-      <div class="msgContent">
-        <div class="msgHeader">
+    <li class="msg-row" data-message-type="from-user">
+      <figure class="msg-avatar" style="background-image: url('https://cdn.discordapp.com/avatars/255432387993796618/5c947997c70c1d3db8b9950db924a25a.png?size=256')"></figure>
+      <div class="msg-content">
+        <div class="msg-header">
           <p data-tooltip={msg.user_id} data-role={msg.role_name.toLowerCase()}>
             {msg.user_name}
             <ShieldIcon />
@@ -160,7 +195,7 @@ const OutgoingMessage: FC<{ msg: CollapsedThreadMessage }> = ({ msg }) => {
           </p>
           <time>{msg.created_at.toLocaleString()}</time>
         </div>
-        <div class="msgBody">
+        <div class="msg-body">
           {msg.bodies.map((body) => (
             <p>{body}</p>
           ))}
@@ -173,15 +208,16 @@ const OutgoingMessage: FC<{ msg: CollapsedThreadMessage }> = ({ msg }) => {
 const SystemMessage: FC<{ msg: CollapsedThreadMessage }> = ({ msg }) => {
   return (
     <li
+      class="msg-row"
       data-message-type={
         msg.message_type === ThreadMessageType.System
           ? "system"
           : "system-to-user"
       }
     >
-      <figure class="msgAvatar"></figure>
-      <div class="msgContent">
-        <div class="msgHeader">
+      <figure class="msg-avatar" style="background-image: url('https://cdn.discordapp.com/avatars/255432387993796618/5c947997c70c1d3db8b9950db924a25a.png?size=256')"></figure>
+      <div class="msg-content">
+        <div class="msg-header">
           <p data-tooltip={msg.user_id}>
             Overwatch 2 ModMail
             <MailIcon />
@@ -189,7 +225,7 @@ const SystemMessage: FC<{ msg: CollapsedThreadMessage }> = ({ msg }) => {
           </p>
           <time>{msg.created_at.toLocaleString()}</time>
         </div>
-        <div class="msgBody">
+        <div class="msg-body">
           {msg.bodies.map((body) => (
             <p>{body}</p>
           ))}
@@ -201,10 +237,10 @@ const SystemMessage: FC<{ msg: CollapsedThreadMessage }> = ({ msg }) => {
 
 const _ToUser: FC<{ msg: CollapsedThreadMessage }> = ({ msg }) => {
   return (
-    <li data-message-type="to-user">
-      <figure class="msgAvatar"></figure>
-      <div class="msgContent">
-        <div class="msgHeader">
+    <li class="msg-row" data-message-type="to-user">
+      <figure class="msg-avatar"></figure>
+      <div class="msg-content">
+        <div class="msg-header">
           <p data-tooltip={msg.user_id}>
             {msg.user_name}
             <MailIcon />
@@ -212,7 +248,7 @@ const _ToUser: FC<{ msg: CollapsedThreadMessage }> = ({ msg }) => {
           </p>
           <time>{msg.created_at.toLocaleString()}</time>
         </div>
-        <div class="msgBody">
+        <div class="msg-body">
           {msg.bodies.map((body) => (
             <p>{body}</p>
           ))}
@@ -224,10 +260,10 @@ const _ToUser: FC<{ msg: CollapsedThreadMessage }> = ({ msg }) => {
 
 const InternalMessage: FC<{ msg: CollapsedThreadMessage }> = ({ msg }) => {
   return (
-    <li data-message-type="internal">
-      <figure class="msgAvatar"></figure>
-      <div class="msgContent">
-        <div class="msgHeader">
+    <li class="msg-row" data-message-type="internal">
+      <figure class="msg-avatar" style="background-image: url('https://cdn.discordapp.com/guilds/94882524378968064/users/164564849915985922/avatars/5af00b63dec32d3b5f80cf7d2f2a0f0e.png?size=128')"></figure>
+      <div class="msg-content">
+        <div class="msg-header">
           <p data-tooltip={msg.user_id}>
             {msg.user_name}
             <ShieldIcon />
@@ -235,7 +271,7 @@ const InternalMessage: FC<{ msg: CollapsedThreadMessage }> = ({ msg }) => {
           </p>
           <time>{msg.created_at.toLocaleString()}</time>
         </div>
-        <div class="msgBody">
+        <div class="msg-body">
           {msg.bodies.map((body) => (
             <p>{body}</p>
           ))}

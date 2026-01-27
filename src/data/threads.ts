@@ -9,6 +9,7 @@ import {
   type TextChannel,
   type User,
   VoiceChannel,
+  DiscordAPIError,
 } from "discord.js";
 import humanizeDuration from "humanize-duration";
 import { v4 } from "uuid";
@@ -169,8 +170,8 @@ export async function createNewThreadForUser(
         if (member) {
           userGuildData.set(guild.id, { guild, member });
         }
-      } catch (e) {
-        console.log(e);
+      } catch (e: unknown) {
+        if ((e as DiscordAPIError).code !== 10007) console.log(e);
       }
     }
 

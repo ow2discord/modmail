@@ -3,10 +3,13 @@
 :root {
 	--color-gray-900: #2c2d32;
 	--color-gray-800: #323339;
+  --color-gray-750: #393A41;
 	--color-gray-700: #3d3e45;
 	--color-gray-600: #46464d;
 	--color-gray-300: #9b9ca3;
 	--color-gray-100: #dcdddf;
+
+  --color-link: #76AFF6;
 
 	--color-white: #fff;
 	--color-mod: #f86d1d;
@@ -51,14 +54,14 @@ body {
 	}
 }
 
-.threadMessages {
+.thread-messages {
 	display: grid;
 	list-style: none;
 	padding: 0;
 	max-width: var(--max-content-width);
 	margin: 0 auto;
 
-	& li {
+	& .msg-row {
 		padding: 0.8rem 1rem;
 		display: flex;
 		gap: 1rem;
@@ -72,15 +75,22 @@ body {
 	}
 }
 
-.msgAvatar {
+.msg-avatar {
 	width: 40px;
 	height: 40px;
 	background: var(--color-gray-700);
+  background-size: cover;
+  background-position: center;
 	border-radius: 100%;
 	margin: 0;
+  flex-shrink: 0;
 }
 
-.msgHeader {
+.msg-content {
+  flex: 0 1 auto;
+}
+
+.msg-header {
 	display: flex;
 	align-items: center;
 	gap: 0.8ch;
@@ -117,8 +127,36 @@ body {
 	}
 }
 
-.msgBody p {
-	margin: 0;
+.msg-body {
+  & p {
+    margin: 0;
+  }
+
+  & h2, h3 {
+    margin: 0;
+    color: var(--color-white);
+    font-family: 'gg sans Bold', sans-serif;
+  }
+
+   & h6 {
+    font-size: .9rem;
+    color: var(--color-gray-300);
+  }
+
+  & blockquote {
+    margin: 0;
+    padding: 0 16px;
+    border-left: 5px solid var(--color-gray-600);
+  }
+
+  & a {
+    color: var(--color-link);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
 }
 
 .user-icon {
@@ -211,4 +249,45 @@ body {
 
 [data-message-type="internal"] {
 	--user-color: var(--color-mod);
+}
+
+.msg-embed {
+  background: var(--color-gray-750);
+  border-radius: 4px;
+  border: 1px solid var(--color-gray-600);
+  padding: 16px;
+  border-left-width: 5px;
+  border-left-color: var(--embed-color);
+
+  & h4 {
+    font-family: 'gg sans Bold', sans-serif;
+    color: var(--color-white);
+    margin: 0 0 .6rem;
+    font-size: 1rem;
+  }
+
+  & ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 1rem;
+
+    & li {
+      font-size: .95rem;
+
+      &:not([data-inline="true"]) {
+        grid-column: span 2;
+      }
+    }
+  }
+
+  & code {
+    background: var(--color-gray-900);
+    font-family: monospace;
+    border-radius: 3px;
+    padding: 1px 2px;
+    display: inline-block;
+    font-size: .75rem;
+  }
 }
