@@ -171,6 +171,8 @@ export async function createNewThreadForUser(
           userGuildData.set(guild.id, { guild, member });
         }
       } catch (e: unknown) {
+        // We can safely discard this error, because it just means we couldn't find the member in the guild
+        // Which - for obvious reasons - is completely okay.
         if ((e as DiscordAPIError).code !== 10007) console.log(e);
       }
     }

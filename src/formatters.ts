@@ -246,7 +246,7 @@ const defaultFormatters = {
       return line;
     });
 
-    const header = `# Modmail thread #${thread.thread_number} with ${thread.user_name} (${thread.user_id}) started at <t:${thread.created_at.getTime()}:S>. All times are in UTC+0.`;
+    const header = `# Modmail thread #${thread.thread_number} with ${thread.user_name} (${thread.user_id}) started at <t:${Math.round(thread.created_at.getTime() / 1000)}:S>. All times are in UTC+0.`;
 
     const fullResult = `${header}\n\n${lines.join("\n")}`;
 
