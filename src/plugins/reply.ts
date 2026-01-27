@@ -131,7 +131,7 @@ export default ({ config, commands }: ModuleProps) => {
           return;
         }
 
-        await thread.deleteStaffReply(msg.author, threadMessage);
+        await thread.deleteStaffReply(threadMessage, false);
         msg.delete().catch(utils.noop);
       },
       {

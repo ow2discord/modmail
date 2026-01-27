@@ -1007,7 +1007,6 @@ export class Thread {
   }
 
   async deleteStaffReply(
-    _moderator: User,
     threadMessage: ThreadMessage,
     quiet = false,
   ): Promise<void> {
@@ -1015,9 +1014,7 @@ export class Thread {
     if (dmChannel?.isSendable())
       dmChannel.messages.delete(threadMessage.dm_message_id);
 
-    const inboxChannel = await bot.channels.fetch(
-      threadMessage.inbox_message_id,
-    );
+    const inboxChannel = await bot.channels.fetch(this.channel_id);
     if (inboxChannel?.isSendable())
       inboxChannel.messages.delete(threadMessage.inbox_message_id);
 
