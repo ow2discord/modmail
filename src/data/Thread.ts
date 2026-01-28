@@ -2,7 +2,6 @@ import bot from "../bot";
 import cfg from "../cfg";
 import {
   chunkMessageLines,
-  convertDelayStringToMS,
   messageContentIsWithinMaxLength,
   noop,
 } from "../utils";
@@ -57,11 +56,12 @@ import { saveAttachment } from "./attachments";
 import { isBlocked } from "./blocked";
 import { ThreadMessageType, ThreadStatus } from "./constants";
 import { getModeratorThreadDisplayRoleName } from "./displayRoles";
+import type { LogStorageTypes } from "./logs";
 import type { Snippet } from "./Snippet";
 import { all } from "./snippets";
 import ThreadMessage, { type ThreadMessageProps } from "./ThreadMessage";
 import { getNextThreadMessageNumber } from "./threads";
-import type { LogStorageTypes } from "./logs";
+import { convertDelayStringToMS } from "../utils/time";
 
 const escapeFormattingRegex = /[_`~*|]/g;
 

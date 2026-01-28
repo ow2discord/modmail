@@ -1,4 +1,3 @@
-import bot from "../bot";
 import type { ModuleProps } from "../plugins";
 import * as utils from "../utils";
 
@@ -7,6 +6,8 @@ export default ({ config, commands }: ModuleProps) => {
     "reply",
     "[text$]",
     async (msg, args, thread) => {
+      if (!thread) return;
+
       if (!args.text && msg.attachments.size === 0) {
         utils.postError(msg.channel, "Text or attachment required");
         return;
@@ -14,10 +15,10 @@ export default ({ config, commands }: ModuleProps) => {
 
       const replied = await thread.replyToUser(
         msg.member,
-        args.text || "",
+        (args.text as string) || "",
         msg.attachments,
         config.forceAnon,
-        msg.messageReference,
+        msg.reference,
       );
       if (replied) msg.delete();
     },

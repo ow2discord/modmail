@@ -59,7 +59,6 @@ export default ({ db, config, commands }: ModuleProps) => {
 				return;
 			}
 			if (args.delay && typeof args.delay === "number") {
-				// const suspendAt = new Date(Date.now() + args.delay);
 				await thread.scheduleSuspend(args.delay, msg.author);
 
 				thread.postSystemMessage(
