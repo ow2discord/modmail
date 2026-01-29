@@ -54,7 +54,7 @@ import { callAfterThreadCloseHooks } from "../hooks/afterThreadClose";
 import { callAfterThreadCloseScheduleCanceledHooks } from "../hooks/afterThreadCloseScheduleCanceled";
 import { callAfterThreadCloseScheduledHooks } from "../hooks/afterThreadCloseScheduled";
 import { callBeforeNewMessageReceivedHooks } from "../hooks/beforeNewMessageReceived";
-import { Emoji } from "../style";
+import { Emoji, localRole } from "../style";
 import { messageContentToAdvancedMessageContent } from "../utils";
 import { convertDelayStringToMS } from "../utils/time";
 import { saveAttachment } from "./attachments";
@@ -1153,23 +1153,6 @@ export class Thread {
     }
 
     const userLogCount = await getClosedThreadCountByUserId(this.db, user.id);
-    embed.setTitle(`Thread #${userLogCount + 1} with ${user.username}`);
-
-    if (userLogCount > 0) {
-      const mostRecentThread = await getLastClosedThreadByUser(
-        this.db,
-        user.id,
-      );
-      if (mostRecentThread) {
-        mostRecentThread.log_storage_type = "local";
-        const mostRecentLog = await getLogUrl(mostRecentThread);
-
-        embed.setDescription(
-          `${userLogCount} prior thread${userLogCount === 1 ? "" : "s"} [(view most recent)](${mostRecentLog})\n\nView prior logs with \`!logs\` or notes with \`!notes\``,
-        );
-      }
-    }
-
     const infoHeaderItems = [];
 
     // Account age
@@ -1192,6 +1175,7 @@ export class Thread {
     embed.addFields({
       name: "Joined",
       value: `${Emoji.Discord} <t:${Math.round(user.createdAt.getTime() / 1000)}:d>${guildJoins.length > 0 ? " **•** " : ""}${guildJoins.join(" **•** ")}`,
+      inline: true,
     });
 
     const url = await getLogUrl(this);
@@ -1205,7 +1189,6 @@ export class Thread {
       {
         name: "User ID",
         value: `\`${user.id}\``,
-        inline: true,
       },
     ]);
 
@@ -1249,6 +1232,10 @@ export class Thread {
       }
     }
 
+    let muteStatus = false;
+    let pronouns: Array<string> = [];
+    let roles: Array<string> = [];
+
     // Guild member info
     for (const [_guildId, guildData] of userGuildData.entries()) {
       const nickname =
@@ -1285,33 +1272,39 @@ export class Thread {
 
       const member = await guildData.member.fetch();
       if (config.rolesInThreadHeader && member.roles.cache.size > 0) {
-        const roles = guildData.member.roles.cache
-          .map((r) => {
-            switch (r.name.toLowerCase().trim()) {
-              case "muted":
-                return `${Emoji.Muted} **${r.name}**`;
-              case "moderator":
-              case "mod":
-              case "admin":
-              case "administrator":
-                return `${Emoji.Staff} ${r.name}`;
+        // Real main server - not ban appeals.
+        if (guildData.guild.id === "94882524378968064") {
+          for (let role of guildData.member.roles.cache.values()) {
+            if (role.name.includes("She/Her")) pronouns.push("she/her");
+            else if (role.name.includes("He/Him")) pronouns.push("he/him");
+            else if (role.name.includes("They/Them"))
+              pronouns.push("they/them");
+            else if (role.name.includes("Any Pronouns")) pronouns = ["any/all"];
+            else if (role.name.includes("Muted")) muteStatus = true;
 
-              default:
-                return r.name;
-            }
-            // r.name === "Muted" ? `${Emoji.Muted} ${r.name}` : r.name,
-          })
-          .filter((c) => c !== "@everyone");
+            let modmailRole = localRole(role.id);
+            if (modmailRole) roles.push(modmailRole);
+          }
+        }
 
         headerItems.push({
           name: "Roles",
-          value: roles.join(", "),
+          value: guildData.member.roles.cache
+            .filter((c) => c.name !== "@everyone")
+            .map((r) => r.name)
+            .join(", "),
         });
+
+        let emoji = "💿";
+        if (guildData.guild.name.toLowerCase().includes("overwatch"))
+          emoji = Emoji.Overwatch;
+        if (guildData.guild.name.toLowerCase().includes("appeal"))
+          emoji = Emoji.Banned;
 
         embed.addFields([
           {
-            name: `**${escapeMarkdown(guildData.guild.name)}** (as ${guildData.member.nickname})`,
-            value: roles.join(", "),
+            name: `${emoji} ${guildData.member.nickname}`,
+            value: roles.join(" "),
           },
         ]);
       }
@@ -1323,6 +1316,10 @@ export class Thread {
       infoHeader += `\n**[${escapeMarkdown(guildData.guild.name)}]** ${headerStr}`;
     }
 
+    embed.setTitle(`Thread #${userLogCount + 1} with ${user.username}`);
+    console.log(roles);
+    console.log(pronouns);
+
     if (userLogCount > 0) {
       infoHeader += `\n\nThis user has **${userLogCount}** previous modmail threads. Use \`${config.prefix}logs\` to see them.`;
     }
@@ -1332,9 +1329,20 @@ export class Thread {
       infoHeader += `\n\nThis user has **${userNotes.length}** notes. Use \`${config.prefix}notes\` to see them.`;
     }
 
-    embed.setFooter({
-      text: `Thread ${this.id}`,
-    });
+    if (userLogCount > 0) {
+      const mostRecentThread = await getLastClosedThreadByUser(
+        this.db,
+        user.id,
+      );
+      if (mostRecentThread) {
+        mostRecentThread.log_storage_type = "local";
+        const mostRecentLog = await getLogUrl(mostRecentThread);
+
+        embed.setDescription(
+          `${muteStatus ? `${Emoji.Muted} **This user is currently muted**\n` : ""}${pronouns.length > 0 ? `**Pronouns:** ${pronouns.join(`, `)}\n` : ""}\n${userLogCount} prior thread${userLogCount === 1 ? `` : "s"} [(view last)](${mostRecentLog})\n\nView prior logs with \`!logs\` or notes with \`!notes\``,
+        );
+      }
+    }
 
     infoHeader += "\n────────────────";
 
