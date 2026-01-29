@@ -18,116 +18,116 @@ import { beforeNewThread } from "./hooks/beforeNewThread";
 export class PluginInstallationError extends Error {}
 
 const pluginSources = {
-  file: {},
+	file: {},
 };
 
 async function loadFilePlugin(
-  plugin: string,
-  pluginApi: ReturnType<typeof getPluginAPI>,
+	plugin: string,
+	pluginApi: ReturnType<typeof getPluginAPI>,
 ) {
-  const pluginImportPath = path.join(__dirname, "..", plugin);
-  const pluginFn = (await import(pluginImportPath)).default;
+	const pluginImportPath = path.join(__dirname, "..", plugin);
+	const pluginFn = (await import(pluginImportPath)).default;
 
-  if (typeof pluginFn !== "function") {
-    throw new PluginInstallationError(
-      `Plugin '${plugin}' is not a valid plugin`,
-    );
-  }
-  return pluginFn(pluginApi);
+	if (typeof pluginFn !== "function") {
+		throw new PluginInstallationError(
+			`Plugin '${plugin}' is not a valid plugin`,
+		);
+	}
+	return pluginFn(pluginApi);
 }
 
 const defaultPluginSource = "file";
 
 function splitPluginSource(pluginName: string) {
-  for (const pluginSource of Object.keys(pluginSources)) {
-    if (pluginName.startsWith(`${pluginSource}:`)) {
-      return {
-        source: pluginSource,
-        plugin: pluginName.slice(pluginSource.length + 1),
-      };
-    }
-  }
+	for (const pluginSource of Object.keys(pluginSources)) {
+		if (pluginName.startsWith(`${pluginSource}:`)) {
+			return {
+				source: pluginSource,
+				plugin: pluginName.slice(pluginSource.length + 1),
+			};
+		}
+	}
 
-  return {
-    source: defaultPluginSource,
-    plugin: pluginName,
-  };
+	return {
+		source: defaultPluginSource,
+		plugin: pluginName,
+	};
 }
 
 export async function loadPlugins(
-  plugins: Array<string>,
-  pluginApi: ReturnType<typeof getPluginAPI>,
+	plugins: Array<string>,
+	pluginApi: ReturnType<typeof getPluginAPI>,
 ) {
-  for (const pluginName of plugins) {
-    const { source: _, plugin } = splitPluginSource(pluginName);
-    await loadFilePlugin(plugin, pluginApi);
-  }
+	for (const pluginName of plugins) {
+		const { source: _, plugin } = splitPluginSource(pluginName);
+		await loadFilePlugin(plugin, pluginApi);
+	}
 }
 
 export type ModuleProps = {
-  bot: Client;
-  config: ModmailConfig;
-  commands: Commands;
-  db: SQL;
-  attachments: {
-    downloadAttachment: typeof downloadAttachment;
-    saveAttachment: typeof saveAttachment;
-  };
-  logs: {
-    saveLogToStorage: typeof logs.saveLogToStorage;
-    getLogUrl: typeof logs.getLogUrl;
-    getLogFile: typeof logs.getLogFile;
-    getLogCustomResponse: typeof logs.getLogCustomResponse;
-  };
-  hooks: {
-    beforeNewThread: typeof beforeNewThread;
-    beforeNewMessageReceived: typeof beforeNewMessageReceived;
-    afterNewMessageReceived: typeof afterNewMessageReceived;
-    afterThreadClose: typeof afterThreadClose;
-    afterThreadCloseScheduled: typeof afterThreadCloseScheduled;
-    afterThreadCloseScheduleCanceled: typeof afterThreadCloseScheduleCanceled;
-  };
-  formats: typeof formats;
-  threads: typeof threads;
-  displayRoles: typeof displayRoles;
+	bot: Client;
+	config: ModmailConfig;
+	commands: Commands;
+	db: SQL;
+	attachments: {
+		downloadAttachment: typeof downloadAttachment;
+		saveAttachment: typeof saveAttachment;
+	};
+	logs: {
+		saveLogToStorage: typeof logs.saveLogToStorage;
+		getLogUrl: typeof logs.getLogUrl;
+		getLogFile: typeof logs.getLogFile;
+		getLogCustomResponse: typeof logs.getLogCustomResponse;
+	};
+	hooks: {
+		beforeNewThread: typeof beforeNewThread;
+		beforeNewMessageReceived: typeof beforeNewMessageReceived;
+		afterNewMessageReceived: typeof afterNewMessageReceived;
+		afterThreadClose: typeof afterThreadClose;
+		afterThreadCloseScheduled: typeof afterThreadCloseScheduled;
+		afterThreadCloseScheduleCanceled: typeof afterThreadCloseScheduleCanceled;
+	};
+	formats: typeof formats;
+	threads: typeof threads;
+	displayRoles: typeof displayRoles;
 };
 
 export function getPluginAPI({
-  bot,
-  db,
-  config,
-  commands,
+	bot,
+	db,
+	config,
+	commands,
 }: {
-  bot: Client;
-  db: SQL;
-  config: ModmailConfig;
-  commands: Commands;
+	bot: Client;
+	db: SQL;
+	config: ModmailConfig;
+	commands: Commands;
 }): ModuleProps {
-  return {
-    bot,
-    db,
-    config,
-    commands,
-    attachments: {
-      downloadAttachment: downloadAttachment,
-      saveAttachment: saveAttachment,
-    },
-    logs: {
-      saveLogToStorage: logs.saveLogToStorage,
-      getLogUrl: logs.getLogUrl,
-      getLogFile: logs.getLogFile,
-      getLogCustomResponse: logs.getLogCustomResponse,
-    },
-    hooks: {
-      beforeNewThread,
-      beforeNewMessageReceived,
-      afterNewMessageReceived,
-      afterThreadClose,
-      afterThreadCloseScheduled,
-      afterThreadCloseScheduleCanceled,
-    },
-    formats,
-    threads,
-    displayRoles,
-  };
+	return {
+		bot,
+		db,
+		config,
+		commands,
+		attachments: {
+			downloadAttachment: downloadAttachment,
+			saveAttachment: saveAttachment,
+		},
+		logs: {
+			saveLogToStorage: logs.saveLogToStorage,
+			getLogUrl: logs.getLogUrl,
+			getLogFile: logs.getLogFile,
+			getLogCustomResponse: logs.getLogCustomResponse,
+		},
+		hooks: {
+			beforeNewThread,
+			beforeNewMessageReceived,
+			afterNewMessageReceived,
+			afterThreadClose,
+			afterThreadCloseScheduled,
+			afterThreadCloseScheduleCanceled,
+		},
+		formats,
+		threads,
+		displayRoles,
+	};
 }
