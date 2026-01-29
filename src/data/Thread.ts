@@ -45,6 +45,7 @@ import {
   type SendableChannels,
   type User,
   VoiceChannel,
+  type HexColorString,
 } from "discord.js";
 import humanizeDuration from "humanize-duration";
 import config from "../cfg";
@@ -54,7 +55,7 @@ import { callAfterThreadCloseHooks } from "../hooks/afterThreadClose";
 import { callAfterThreadCloseScheduleCanceledHooks } from "../hooks/afterThreadCloseScheduleCanceled";
 import { callAfterThreadCloseScheduledHooks } from "../hooks/afterThreadCloseScheduled";
 import { callBeforeNewMessageReceivedHooks } from "../hooks/beforeNewMessageReceived";
-import { Emoji, localRole, roleEmoji, sortRoles } from "../style";
+import { Colours, Emoji, localRole, roleEmoji, sortRoles } from "../style";
 import { messageContentToAdvancedMessageContent } from "../utils";
 import { convertDelayStringToMS } from "../utils/time";
 import { saveAttachment } from "./attachments";
@@ -1225,6 +1226,22 @@ export class Thread {
     }
 
     let muteStatus = false;
+    // TODO: Clean this up so it's not so hard-coded
+    let banStatus = false;
+    try {
+      const ban = await userGuildData
+        .get("94882524378968064")
+        ?.guild.bans.fetch(user.id);
+      if (ban) banStatus = true;
+    } catch (err: unknown) {
+      // Unknown Ban - user is not banned
+      if (err instanceof DiscordAPIError && err.code === 10026) {
+        return false;
+      }
+
+      throw err;
+    }
+
     const pronouns: Array<string> = [];
     const roles: Array<string> = [];
 
@@ -1363,6 +1380,16 @@ export class Thread {
           value: "** **",
         },
       ]);
+
+    if (banStatus) {
+      embed.setColor(Colours.Red as HexColorString);
+      embed.addFields([
+        {
+          name: `${Emoji.Banned} **This user is currently banned**\n`,
+          value: "** **",
+        },
+      ]);
+    }
 
     infoHeader += "\n────────────────";
 
