@@ -1172,24 +1172,15 @@ export class Thread {
       return `${emoji} <t:${Math.round((member.joinedAt?.getTime() || 1000) / 1000)}:d>`;
     });
 
-    embed.addFields({
-      name: "Joined",
-      value: `${Emoji.Discord} <t:${Math.round(user.createdAt.getTime() / 1000)}:d>${guildJoins.length > 0 ? " **•** " : ""}${guildJoins.join(" **•** ")}`,
-      inline: true,
-    });
-
-    const url = await getLogUrl(this);
-
     embed.addFields([
       {
-        name: "Log Link",
-        value: `[View Live](${url})`,
+        name: "Joined",
+        value: `${Emoji.Discord} <t:${Math.round(user.createdAt.getTime() / 1000)}:d>${guildJoins.length > 0 ? " **•** " : ""}${guildJoins.join(" **•** ")}`,
         inline: true,
       },
       {
         name: "User ID",
         value: `\`${user.id}\``,
-        inline: true,
       },
     ]);
 
@@ -1234,7 +1225,7 @@ export class Thread {
     }
 
     let muteStatus = false;
-    let pronouns: Array<string> = [];
+    const pronouns: Array<string> = [];
     const roles: Array<string> = [];
 
     // Guild member info
@@ -1305,7 +1296,7 @@ export class Thread {
 
         embed.addFields([
           {
-            name: `${emoji} ${guildData.member.nickname}`,
+            name: `${emoji}  ${roleEmoji(roles[0] || "")} ${guildData.member.nickname}`,
             value: sortRoles(roles).join(", "),
           },
         ]);
@@ -1315,7 +1306,7 @@ export class Thread {
         .map((h) => `${h.name.toUpperCase()} ${h.value}`)
         .join(", ");
 
-      infoHeader += `\n**[${escapeMarkdown(guildData.guild.name)}]** ${roleEmoji(roles[0] || "")} ${headerStr}`;
+      infoHeader += `\n**[${escapeMarkdown(guildData.guild.name)}]** ${headerStr}`;
     }
 
     embed.setTitle(`Thread #${userLogCount + 1} with ${user.username}`);
