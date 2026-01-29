@@ -1168,7 +1168,7 @@ export class Thread {
       let emoji = "💿";
       if (guild.name.toLowerCase().includes("overwatch"))
         emoji = Emoji.Overwatch;
-      if (guild.name.toLowerCase().includes("appeal")) emoji = Emoji.Banned;
+      if (guild.name.toLowerCase().includes("appeal")) emoji = Emoji.Appeals;
 
       return `${emoji} <t:${Math.round((member.joinedAt?.getTime() || 1000) / 1000)}:d>`;
     });
@@ -1292,7 +1292,7 @@ export class Thread {
         if (guildData.guild.name.toLowerCase().includes("overwatch"))
           emoji = Emoji.Overwatch;
         if (guildData.guild.name.toLowerCase().includes("appeal"))
-          emoji = Emoji.Banned;
+          emoji = Emoji.Appeals;
 
         const rolesForDisplay = sortRoles(roles)
           .filter((r) => r !== "Regular")
@@ -1312,7 +1312,10 @@ export class Thread {
         embed.addFields([
           {
             name: `${emoji}${draysLittlePreciousSpace}${escapeMarkdown(nickname || guildData.member.user.username)}${pronouns.length > 0 ? `  •  (${pronouns.join("/")})` : ""}`,
-            value: `${roleEmoji(roles[0] || "")}${draysLittlePreciousSpace}${rolesForDisplay}`,
+            value:
+              rolesForDisplay.length > 0
+                ? `${roleEmoji(roles[0] || "")}${draysLittlePreciousSpace}${rolesForDisplay}`
+                : "",
           },
         ]);
       }
