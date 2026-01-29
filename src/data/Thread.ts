@@ -54,7 +54,7 @@ import { callAfterThreadCloseHooks } from "../hooks/afterThreadClose";
 import { callAfterThreadCloseScheduleCanceledHooks } from "../hooks/afterThreadCloseScheduleCanceled";
 import { callAfterThreadCloseScheduledHooks } from "../hooks/afterThreadCloseScheduled";
 import { callBeforeNewMessageReceivedHooks } from "../hooks/beforeNewMessageReceived";
-import { Emoji, localRole, sortRoles } from "../style";
+import { Emoji, localRole, roleEmoji, sortRoles } from "../style";
 import { messageContentToAdvancedMessageContent } from "../utils";
 import { convertDelayStringToMS } from "../utils/time";
 import { saveAttachment } from "./attachments";
@@ -1315,7 +1315,7 @@ export class Thread {
         .map((h) => `${h.name.toUpperCase()} ${h.value}`)
         .join(", ");
 
-      infoHeader += `\n**[${escapeMarkdown(guildData.guild.name)}]** ${headerStr}`;
+      infoHeader += `\n**[${escapeMarkdown(guildData.guild.name)}]** ${roleEmoji(roles[0] || "")} ${headerStr}`;
     }
 
     embed.setTitle(`Thread #${userLogCount + 1} with ${user.username}`);
