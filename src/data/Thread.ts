@@ -1294,10 +1294,25 @@ export class Thread {
 				if (guildData.guild.name.toLowerCase().includes("appeal"))
 					emoji = Emoji.Banned;
 
+				const rolesForDisplay = sortRoles(roles)
+					.filter((r) => r !== "Regular")
+					.map((r) =>
+						[
+							"Guillard Purple",
+							"Vishkar Blue",
+							"Kamori Teal",
+							"Oladele Green",
+							"Helix Yellow",
+						].includes(r)
+							? "Regular"
+							: r,
+					)
+					.join(", ");
+
 				embed.addFields([
 					{
 						name: `${emoji} ${guildData.member.nickname}`,
-						value: roleEmoji(roles[0] || "") + sortRoles(roles).join(", "),
+						value: roleEmoji(roles[0] || "") + rolesForDisplay,
 					},
 				]);
 			}
