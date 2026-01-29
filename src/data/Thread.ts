@@ -1125,7 +1125,7 @@ export class Thread {
 
   public async postInfoHeader(user: User, ignoreRequirements: boolean = false) {
     const initialMessage = await (await this.getThreadChannel()).send(
-      `New thread from ${user.username} Loading details...`,
+      `${user.username} Loading details...`,
     );
 
     const embed = new EmbedBuilder();
@@ -1204,7 +1204,7 @@ export class Thread {
       },
       {
         name: "User ID",
-        value: user.id,
+        value: `\`${user.id}\``,
         inline: true,
       },
     ]);
