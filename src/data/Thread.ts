@@ -857,7 +857,7 @@ export class Thread {
     const delay_micro = delay_ms * 1000;
 
     await this
-      .db`UPDATE threads SET scheduled_close_at = DATE_ADD(NOW(3), INTERVAL ${delay_micro} MICROSECOND), scheduled_close_id = ${user.id}, scheduled_close_name = ${closed_username}, scheduled_close_silent = ${silent} WHERE id = ${this.id}`;
+      .db`UPDATE threads SET scheduled_close_at = DATE_ADD(NOW(), INTERVAL ${delay_micro} MICROSECOND), scheduled_close_id = ${user.id}, scheduled_close_name = ${closed_username}, scheduled_close_silent = ${silent} WHERE id = ${this.id}`;
 
     await callAfterThreadCloseScheduledHooks({ thread: this });
   }
@@ -900,7 +900,7 @@ export class Thread {
     const delay_micro = delay_ms * 1000;
 
     await this
-      .db`UPDATE threads SET scheduled_suspend_id = ${user.id}, scheduled_suspend_name = ${suspend_name}, scheduled_suspend_at = DATE_ADD(NOW(3), INTERVAL ${delay_micro} MICROSECOND) WHERE id = ${this.id}`;
+      .db`UPDATE threads SET scheduled_suspend_id = ${user.id}, scheduled_suspend_name = ${suspend_name}, scheduled_suspend_at = DATE_ADD(NOW(), INTERVAL ${delay_micro} MICROSECOND) WHERE id = ${this.id}`;
   }
 
   async cancelScheduledSuspend(): Promise<void> {
