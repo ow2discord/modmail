@@ -1124,6 +1124,7 @@ export class Thread {
   }
 
   public async postInfoHeader(user: User, ignoreRequirements: boolean = false) {
+    const draysLittlePreciousSpace = "  ";
     const initialMessage = await (await this.getThreadChannel()).send(
       `${user.username} Loading details...`,
     );
@@ -1216,10 +1217,8 @@ export class Thread {
           const timeOnServerDeniedMessage = readMultilineConfigValue(
             config.timeOnServerDeniedMessage,
           );
-          const privateChannel = user.dmChannel;
-          if (privateChannel) {
-            await privateChannel.send(timeOnServerDeniedMessage);
-          }
+
+          await user.send(timeOnServerDeniedMessage);
         }
         return null;
       }
@@ -1312,8 +1311,8 @@ export class Thread {
 
         embed.addFields([
           {
-            name: `${emoji}  ${guildData.member.nickname}  •  ${pronouns.length > 0 ? `(${pronouns.join("/")})` : ""}`,
-            value: `${roleEmoji(roles[0] || "")}  ${rolesForDisplay}`,
+            name: `${emoji}${draysLittlePreciousSpace}${escapeMarkdown(nickname || guildData.member.user.username)}${pronouns.length > 0 ? `  •  (${pronouns.join("/")})` : ""}`,
+            value: `${roleEmoji(roles[0] || "")}${draysLittlePreciousSpace}${rolesForDisplay}`,
           },
         ]);
       }
@@ -1341,6 +1340,7 @@ export class Thread {
         this.db,
         user.id,
       );
+
       if (mostRecentThread) {
         mostRecentThread.log_storage_type = "local";
         const mostRecentLog = await getLogUrl(mostRecentThread);
@@ -1349,6 +1349,8 @@ export class Thread {
           `${userLogCount} prior thread${userLogCount === 1 ? `` : "s"} [(view last)](${mostRecentLog})`,
         );
       }
+    } else {
+      embed.setDescription("First thread with user");
     }
 
     if (muteStatus)
