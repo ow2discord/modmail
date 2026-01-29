@@ -9,6 +9,7 @@ export const Emoji = {
 	Docs: "<:Docs:1172077218260848690>",
 	Verified: "<:Verified:1466317991183515802>",
 	Modmail: "<:ModMail:1466317685926269043>",
+	Notepad: "🗒️",
 	Roles: {
 		LFGTool: "<:LFGTool:1466324267279847454>",
 		Grey: "<:RoleGrey:1466318934352461879>",
@@ -38,52 +39,57 @@ export const Colours = {
 	Orange: "#F06414",
 };
 
-export const localRole = (roleName: string): string | null => {
-	const map = {
-		Admin: `${Emoji.Roles.Admin} Admin`,
-		Moderator: `${Emoji.Roles.Moderator} Moderator`,
-		Trainee: `${Emoji.Roles.Trainee} Trainee`,
-		Blizzard: `${Emoji.Overwatch} Blizzard`,
-		"Subreddit Mod": `${Emoji.Roles.Moderator} Subreddit Mod`,
-		"Event Winner": `${Emoji.Roles.EventWinner} Event Winner`,
-		"Helix Yellow": `${Emoji.Roles.HelixYellow} Helix Yellow`,
-		"Guillard Purple": `${Emoji.Roles.GuilliardPurple} Guillard Purple`,
-		"Oladele Green": `${Emoji.Roles.OladeleGreen} Oladele Green`,
-		"Kamori Teal": `${Emoji.Roles.KamoriTeal} Kamori Teal`,
-		"Vishkar Blue": `${Emoji.Roles.VishkarBlue} Vishkar Blue`,
-		Distinguished: `${Emoji.Roles.Distinguished} Distinguished`,
-		Accomplished: `${Emoji.Roles.Grey} Accomplished`,
-		Regular: "Regular",
-		Verified: `${Emoji.Verified} Verified`,
-		FACEIT: `${Emoji.Roles.FaceIt} FACEIT`,
-		"LFG Tool Dev": `${Emoji.Roles.LFGTool} LFG Tool Dev`,
-		"Esports Org": "Esports Org",
-		"Event Host": "Event Host",
-		"Head Coach": `${Emoji.Roles.Coach} Head Coach`,
-		Coach: `${Emoji.Roles.Coach} Coach`,
-		"Coach Trainee": `${Emoji.Roles.CoachTrainee} Coach Trainee`,
-		Decennial: `${Emoji.Roles.Decennial} Decennial`,
-		Quinquennial: `${Emoji.Roles.Quinquennial} Quinquennial`,
-		Veteran: `Veteran`,
-		"Nitro Booster": `${Emoji.Roles.NitroBooster} Nitro Booster`,
-		"Esports Announcement Coordinator": "Esports Announcement Coordinator",
-		"Server Events Mute": "Server Events Mute",
-		"Overwatch Announcements": "Overwatch Announcements",
-		"Server Announcements": "Server Announcements",
-		"Server Events": "Server Events",
-		"PC Tournaments": "PC Tournaments",
-		"Console Tournaments": "Console Tournaments",
-		"LFG (PC - NA)": "LFG (PC - NA)",
-		"LFG (PC - EU)": "LFG (PC - EU)",
-		"LFG (PC - OCE/AS)": "LFG (PC - OCE/AS)",
-		"LFG (Console)": "LFG (Console)",
-		"Team Recruitment (NA)": "Team Recruitment (NA)",
-		"Team Recruitment (EU)": "Team Recruitment (EU)",
-		"Coaching & Advice": "Coaching & Advice",
-	};
+const roleMap = {
+	Admin: `${Emoji.Roles.Admin} Admin`,
+	Moderator: `${Emoji.Roles.Moderator} Moderator`,
+	Trainee: `${Emoji.Roles.Trainee} Trainee`,
+	Blizzard: `${Emoji.Overwatch} Blizzard`,
+	"Subreddit Mod": `${Emoji.Roles.Moderator} Subreddit Mod`,
+	"Event Winner": `${Emoji.Roles.EventWinner} Event Winner`,
+	"Helix Yellow": `${Emoji.Roles.HelixYellow} Helix Yellow`,
+	"Guillard Purple": `${Emoji.Roles.GuilliardPurple} Guillard Purple`,
+	"Oladele Green": `${Emoji.Roles.OladeleGreen} Oladele Green`,
+	"Kamori Teal": `${Emoji.Roles.KamoriTeal} Kamori Teal`,
+	"Vishkar Blue": `${Emoji.Roles.VishkarBlue} Vishkar Blue`,
+	Distinguished: `${Emoji.Roles.Distinguished} Distinguished`,
+	Accomplished: `${Emoji.Roles.Grey} Accomplished`,
+	Regular: `${Emoji.Roles.Grey} Regular`,
+	Verified: `${Emoji.Verified} Verified`,
+	FACEIT: `${Emoji.Roles.FaceIt} FACEIT`,
+	"LFG Tool Dev": `${Emoji.Roles.LFGTool} LFG Tool Dev`,
+	"Esports Org": "Esports Org",
+	"Event Host": "Event Host",
+	"Head Coach": `${Emoji.Roles.Coach} Head Coach`,
+	Coach: `${Emoji.Roles.Coach} Coach`,
+	"Coach Trainee": `${Emoji.Roles.CoachTrainee} Coach Trainee`,
+	Decennial: `${Emoji.Roles.Decennial} Decennial`,
+	Quinquennial: `${Emoji.Roles.Quinquennial} Quinquennial`,
+	Veteran: `${Emoji.Roles.Grey} Veteran`,
+	"Nitro Booster": `${Emoji.Roles.NitroBooster} Nitro Booster`,
+	"Esports Announcement Coordinator": "Esports Announcement Coordinator",
+	"Server Events Mute": "Server Events Mute",
+	"Overwatch Announcements": "Overwatch Announcements",
+	"Server Announcements": "Server Announcements",
+	"Server Events": "Server Events",
+	"PC Tournaments": "PC Tournaments",
+	"Console Tournaments": "Console Tournaments",
+	"LFG (PC - NA)": "LFG (PC - NA)",
+	"LFG (PC - EU)": "LFG (PC - EU)",
+	"LFG (PC - OCE/AS)": "LFG (PC - OCE/AS)",
+	"LFG (Console)": "LFG (Console)",
+	"Team Recruitment (NA)": "Team Recruitment (NA)",
+	"Team Recruitment (EU)": "Team Recruitment (EU)",
+	"Coaching & Advice": "Coaching & Advice",
+};
 
-	for (const [key, value] of Object.entries(map))
+export function localRole(roleName: string): string | null {
+	for (const [key, value] of Object.entries(roleMap))
 		if (key.endsWith(roleName)) return value;
 
 	return null;
-};
+}
+
+export function sortRoles(roles: Array<string>): Array<string> {
+	const objValues = Object.values(roleMap);
+	return roles.sort((a, b) => objValues.indexOf(a) - objValues.indexOf(b));
+}
