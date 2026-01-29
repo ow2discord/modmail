@@ -25,6 +25,7 @@ const {
 import type { SQL } from "bun";
 import {
   type Attachment,
+  AttachmentBuilder,
   Collection,
   DiscordAPIError,
   type DMChannel,
@@ -44,7 +45,6 @@ import {
   type SendableChannels,
   type User,
   VoiceChannel,
-  AttachmentBuilder,
 } from "discord.js";
 import humanizeDuration from "humanize-duration";
 import config from "../cfg";
@@ -1234,7 +1234,7 @@ export class Thread {
 
     let muteStatus = false;
     let pronouns: Array<string> = [];
-    let roles: Array<string> = [];
+    const roles: Array<string> = [];
 
     // Guild member info
     for (const [_guildId, guildData] of userGuildData.entries()) {
@@ -1274,7 +1274,7 @@ export class Thread {
       if (config.rolesInThreadHeader && member.roles.cache.size > 0) {
         // Real main server - not ban appeals.
         if (guildData.guild.id === "94882524378968064") {
-          for (let role of guildData.member.roles.cache.values()) {
+          for (const role of guildData.member.roles.cache.values()) {
             if (role.name.includes("She/Her")) pronouns.push("she/her");
             else if (role.name.includes("He/Him")) pronouns.push("he/him");
             else if (role.name.includes("They/Them"))
@@ -1282,7 +1282,7 @@ export class Thread {
             else if (role.name.includes("Any Pronouns")) pronouns = ["any/all"];
             else if (role.name.includes("Muted")) muteStatus = true;
 
-            let modmailRole = localRole(role.id);
+            const modmailRole = localRole(role.name);
             if (modmailRole) roles.push(modmailRole);
           }
         }
@@ -1317,8 +1317,6 @@ export class Thread {
     }
 
     embed.setTitle(`Thread #${userLogCount + 1} with ${user.username}`);
-    console.log(roles);
-    console.log(pronouns);
 
     if (userLogCount > 0) {
       infoHeader += `\n\nThis user has **${userLogCount}** previous modmail threads. Use \`${config.prefix}logs\` to see them.`;
