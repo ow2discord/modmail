@@ -1168,15 +1168,20 @@ export class Thread {
       !userGuildData.has("94882524378968064");
 
     const serverJoin = userBanned
-      ? userGuildData.get("587215460127473703")?.member.joinedAt?.getTime() ||
-        1000
-      : userGuildData.get("94882524378968064")?.member.joinedAt?.getTime() ||
-        1000;
+      ? `${Emoji.Banned} <t:${Math.round(
+          (userGuildData
+            .get("587215460127473703")
+            ?.member.joinedAt?.getTime() || 1000) / 1000,
+        )}:d>`
+      : `${Emoji.Overwatch} <t:${Math.round(
+          (userGuildData.get("94882524378968064")?.member.joinedAt?.getTime() ||
+            1000) / 1000,
+        )}:d>`;
 
     embed.addFields([
       {
         name: "Joined",
-        value: `${Emoji.Discord} <t:${Math.round(user.createdAt.getTime() / 1000)}:d><t:${Math.round(serverJoin) / 1000}:d>`,
+        value: `${Emoji.Discord} <t:${Math.round(user.createdAt.getTime() / 1000)}:d>  **•**  ${serverJoin}`,
         inline: true,
       },
       {
@@ -1370,7 +1375,7 @@ export class Thread {
     if (userBanned) {
       if (Colours.BanRed) embed.setColor(Colours.BanRed);
       const banTime = userBanned
-        ? `<t:userGuildData.get("94882524378968064")?.guild.bans.fetch(user.id):d>`
+        ? `<t:${(await userGuildData.get("94882524378968064")?.guild.bans.fetch(user.id)) || Date.now()}:d>`
         : "an unknown time";
 
       embed.addFields([
