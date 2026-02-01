@@ -1,4 +1,4 @@
-import type { ColorResolvable, HexColorString } from "discord.js";
+import type { ColorResolvable } from "discord.js";
 
 export const Emoji = {
   CheckBadge: "<:Official:944773335882031175>",
@@ -185,3 +185,6 @@ export const Spacing = {
   Doublespace: " ",
   DraysPrecious: "  ",
 };
+
+// That's on periodt. I'm dead as a chile
+export const UnicodePeriod = "․";

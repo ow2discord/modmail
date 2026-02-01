@@ -16,7 +16,7 @@ import {
   type BeforeNewThreadHookResult,
   callBeforeNewThreadHooks,
 } from "../hooks/beforeNewThread";
-import { Emoji } from "../style";
+import { Emoji, UnicodePeriod } from "../style";
 import {
   getInboxGuild,
   getInboxMention,
@@ -26,21 +26,17 @@ import {
   mentionRolesToAllowedMentions,
   mentionRolesToMention,
   readMultilineConfigValue,
-  slugify,
 } from "../utils";
 import { ThreadMessageType, ThreadStatus } from "./constants";
 import Thread, { type ThreadProps } from "./Thread";
 import ThreadMessage from "./ThreadMessage";
 import { getAvailableUpdate } from "./updates";
 import config from "../cfg";
-import bot from "../bot";
 
 const {
-  requiredAccountAge,
   accountAgeDeniedMessage: _accountAgeDeniedMessage,
   timeOnServerDeniedMessage: _timeOnServerDeniedMessage,
   anonymizeChannelName,
-  categoryAutomation,
   updateNotifications,
 } = cfg;
 
@@ -115,10 +111,10 @@ export async function createNewThreadForUser(
 
     // If set in config, check that the user's account is old enough (time since they registered on Discord)
     // If the account is too new, don't start a new thread and optionally reply to them with a message
-    if (requiredAccountAge && !ignoreRequirements) {
+    if (config.requiredAccountAge && !ignoreRequirements) {
       const requiredAge = new Date();
       requiredAge.setTime(
-        requiredAge.getTime() - requiredAccountAge * (60 * 60 * 1000),
+        requiredAge.getTime() - config.requiredAccountAge * (60 * 60 * 1000),
       );
 
       if (user.createdAt >= requiredAge) {
@@ -137,10 +133,19 @@ export async function createNewThreadForUser(
 
     // Use the user's name for the thread channel's name
     // Channel names are particularly picky about what characters they allow, so we gotta do some clean-up
-    let cleanName = slugify(user.username);
-    if (cleanName === "") cleanName = "unknown";
+    // let cleanName = slugify(user.username);
+    let channelName = String(user.username)
+      .normalize("NFKD") // split accented characters into their base characters and diacritical marks
+      .replace(/[\u0300-\u036f]/g, "") // remove all the accents, which happen to be all in the \u03xx UNICODE block.
+      .replace(/./g, UnicodePeriod)
+      .trim() // trim leading or trailing whitespace
+      .toLowerCase() // convert to lowercase
+      .replace(/[^a-z0-9 _]/g, "") // remove non-alphanumeric characters
+      .replace(/\s+/g, "_"); // replace spaces with hyphens
 
-    let channelName = cleanName;
+    if (channelName === "") channelName = "unknown";
+
+    // let channelName = cleanName;
 
     if (anonymizeChannelName) {
       channelName = createHash("md5")
