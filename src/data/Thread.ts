@@ -468,10 +468,7 @@ export class Thread {
       let textContent = forward.content;
       if (forward.stickers.size > 0) {
         textContent += forward.stickers
-          .map(
-            (sticker) =>
-              `Sticker **[${sticker.name}](https://media.discordapp.net/stickers/${sticker.id}.webp?size=160)**`,
-          )
+          .map((sticker) => `Sticker **[${sticker.name}](${sticker.url})**`)
           .join("\n");
       }
 
