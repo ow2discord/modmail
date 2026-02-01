@@ -44,12 +44,7 @@ import {
   type ReplyOptions,
   type SendableChannels,
   type User,
-  MessageFlags,
-  ComponentBuilder,
-  ContainerBuilder,
-  TextDisplayBuilder,
-  SectionBuilder,
-  SeparatorBuilder,
+  type HexColorString,
 } from "discord.js";
 import humanizeDuration from "humanize-duration";
 import config from "../cfg";
@@ -59,7 +54,14 @@ import { callAfterThreadCloseHooks } from "../hooks/afterThreadClose";
 import { callAfterThreadCloseScheduleCanceledHooks } from "../hooks/afterThreadCloseScheduleCanceled";
 import { callAfterThreadCloseScheduledHooks } from "../hooks/afterThreadCloseScheduled";
 import { callBeforeNewMessageReceivedHooks } from "../hooks/beforeNewMessageReceived";
-import { Colours, Emoji, localRole, roleEmoji, sortRoles } from "../style";
+import {
+  Colours,
+  Emoji,
+  localRole,
+  roleEmoji,
+  sortRoles,
+  Spacing,
+} from "../style";
 import { messageContentToAdvancedMessageContent } from "../utils";
 import { convertDelayStringToMS } from "../utils/time";
 import { saveAttachment } from "./attachments";
@@ -525,7 +527,7 @@ export class Thread {
 
     if (msg.stickers) {
       const stickerLines = msg.stickers.map((sticker) => {
-        return `*Sent sticker "(${sticker.name})[https://media.discordapp.net/stickers/${sticker.id}.webp?size=160]":*`;
+        return `*Sent sticker "${sticker.name}":* https://media.discordapp.net/stickers/${sticker.id}.webp?size=160`;
       });
 
       messageContent += `\n\n${stickerLines.join("\n")}`;
@@ -1129,7 +1131,6 @@ export class Thread {
   }
 
   public async postInfoHeader(user: User, ignoreRequirements: boolean = false) {
-    const draysLittlePreciousSpace = "  ";
     const initialMessage = await (await this.getThreadChannel()).send(
       `${user.username} Loading details...`,
     );
@@ -1169,25 +1170,19 @@ export class Thread {
     });
     infoHeaderItems.push(`ACCOUNT AGE **${accountAge}**`);
 
-    const userBanned =
-      userGuildData.has("587215460127473703") &&
-      !userGuildData.has("94882524378968064");
+    const guildJoins = [...userGuildData.values()].map(({ guild, member }) => {
+      let emoji = "💿";
+      if (guild.name.toLowerCase().includes("overwatch"))
+        emoji = Emoji.Overwatch;
+      if (guild.name.toLowerCase().includes("appeal")) emoji = Emoji.Appeals;
 
-    const serverJoin = userBanned
-      ? `${Emoji.Banned} <t:${Math.round(
-          (userGuildData
-            .get("587215460127473703")
-            ?.member.joinedAt?.getTime() || 1000) / 1000,
-        )}:d>`
-      : `${Emoji.Overwatch} <t:${Math.round(
-          (userGuildData.get("94882524378968064")?.member.joinedAt?.getTime() ||
-            1000) / 1000,
-        )}:d>`;
+      return `${emoji} <t:${Math.round((member.joinedAt?.getTime() || 1000) / 1000)}:d>`;
+    });
 
     embed.addFields([
       {
         name: "Joined",
-        value: `${Emoji.Discord} <t:${Math.round(user.createdAt.getTime() / 1000)}:d>  **•**  ${serverJoin}`,
+        value: `${Emoji.Discord} <t:${Math.round(user.createdAt.getTime() / 1000)}:d>${guildJoins.length > 0 ? `${Spacing.Doublespace}**•**${Spacing.Doublespace}` : ""}${guildJoins.join(" **•** ")}`,
         inline: true,
       },
       {
@@ -1238,9 +1233,12 @@ export class Thread {
     let muteStatus = false;
     let pronouns: Array<string> = [];
     const roles: Array<string> = [];
+    const userBanned =
+      userGuildData.has("587215460127473703") &&
+      !userGuildData.has("94882524378968064");
 
     // Guild member info
-    for (const [guildId, guildData] of userGuildData.entries()) {
+    for (const [_guildId, guildData] of userGuildData.entries()) {
       const nickname =
         guildData.member.nickname || config.useDisplaynames
           ? guildData.member.user.globalName
@@ -1266,8 +1264,8 @@ export class Thread {
 
           embed.addFields([
             {
-              name: "In Voice Channel",
-              value: `<#${voiceChannel.id}> (${voiceChannel.name})`,
+              name: "In voice channel",
+              value: `<#!${voiceChannel.id}> (${guildData.guild.name}:${voiceChannel.name})`,
             },
           ]);
         }
@@ -1276,10 +1274,7 @@ export class Thread {
       const member = await guildData.member.fetch();
       if (config.rolesInThreadHeader && member.roles.cache.size > 0) {
         // Real main server - not ban appeals.
-        if (
-          guildData.guild.id === "94882524378968064" ||
-          guildData.guild.id === "394676747876171796"
-        ) {
+        if (guildData.guild.id === "94882524378968064") {
           for (const role of guildData.member.roles.cache.values()) {
             if (role.name.includes("She/Her")) pronouns.push("she/her");
             else if (role.name.includes("He/Him")) pronouns.push("he/him");
@@ -1320,17 +1315,15 @@ export class Thread {
           // If they have Any Pronouns, default to only showing any.
           if (pronouns.includes("any")) pronouns = ["any"];
 
-          if (guildId === "94882524378968064") {
-            embed.addFields([
-              {
-                name: `${escapeMarkdown(nickname || guildData.member.user.username)}${pronouns.length > 0 ? `  •  (${pronouns.join("/")})` : ""}`,
-                value:
-                  rolesForDisplay.length > 0
-                    ? `${roleEmoji(roles[0] || "")}${draysLittlePreciousSpace}${rolesForDisplay}`
-                    : "",
-              },
-            ]);
-          }
+          embed.addFields([
+            {
+              name: `${escapeMarkdown(nickname || guildData.member.user.username)}${pronouns.length > 0 ? `  •  (${pronouns.join("/")})` : ""}`,
+              value:
+                rolesForDisplay.length > 0
+                  ? `${roleEmoji(roles[0] || "")}${Spacing.DraysPrecious}${rolesForDisplay}`
+                  : "",
+            },
+          ]);
         }
       }
 
@@ -1370,32 +1363,20 @@ export class Thread {
       embed.setDescription("No previous threads");
     }
 
-    if (muteStatus) {
-      if (Colours.MuteRed) embed.setColor(Colours.MuteRed);
-
+    if (muteStatus)
       embed.addFields([
         {
-          name: "",
-          value: `-# ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯`,
-        },
-        {
-          name: `${Emoji.Muted} **User is currently muted**\n`,
+          name: `${Emoji.Muted} **This user is currently muted**\n`,
           value: "** **",
         },
       ]);
-    }
 
-    // Remove ban time until we can be sure we can actually get it
     if (userBanned) {
-      if (Colours.BanRed) embed.setColor(Colours.BanRed);
+      embed.setColor(Colours.Red as HexColorString);
       embed.addFields([
         {
-          name: "￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣",
-          value: "",
-        },
-        {
-          name: `${Emoji.Banned} **User is currently banned**\n`,
-          value: "",
+          name: `${Emoji.Banned} **This user is currently banned**\n`,
+          value: "** **",
         },
       ]);
     }
@@ -1403,7 +1384,7 @@ export class Thread {
     infoHeader += "\n────────────────";
 
     await initialMessage.edit({
-      content: null,
+      content: "",
       embeds: [embed],
     });
 

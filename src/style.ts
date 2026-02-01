@@ -180,3 +180,8 @@ export function sortRoles(roles: Array<string>): Array<string> {
 
   return roles.sort((a, b) => objValues.indexOf(a) - objValues.indexOf(b));
 }
+
+export const Spacing = {
+  Doublespace: " ",
+  DraysPrecious: "  ",
+};
