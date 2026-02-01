@@ -28,6 +28,8 @@ import { ThreadMessageType, ThreadStatus } from "./constants";
 import Thread, { type ThreadProps } from "./Thread";
 import ThreadMessage from "./ThreadMessage";
 import { getAvailableUpdate } from "./updates";
+import config from "../cfg";
+import bot from "../bot";
 
 const {
   requiredAccountAge,
@@ -158,12 +160,25 @@ export async function createNewThreadForUser(
 
     console.log(`[NOTE] Creating new thread channel ${opts.channelName}`);
 
+    const banGuild = await bot.guilds.fetch(config.banGuildId);
     // Figure out which category we should place the thread channel in
-    let newThreadCategoryId = hookResult?.categoryId || opts.categoryId || null;
+    let newThreadCategoryId =
+      (hookResult && hookResult.categoryId) || opts.categoryId || null;
 
-    if (!newThreadCategoryId && categoryAutomation?.newThread) {
-      // Blanket category id for all new threads (also functions as a fallback for the above)
-      newThreadCategoryId = categoryAutomation?.newThread;
+    // TODO: Clean this mess up, improve config
+    if (banGuild && (await banGuild.members.fetch(user.id)) !== null) {
+      if (
+        Object.hasOwn(
+          config.categoryAutomation?.newThreadFromServer || {},
+          config.banGuildId,
+        )
+      ) {
+        // @ts-ignore Fairly sure it exists, at this point.
+        newThreadCategoryId =
+          config.categoryAutomation?.newThreadFromServer[config.banGuildId] ||
+          config.categoryAutomation?.newThread ||
+          "";
+      }
     }
 
     // Attempt to create the inbox channel for this thread
