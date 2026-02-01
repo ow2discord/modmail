@@ -1267,7 +1267,7 @@ export class Thread {
           embed.addFields([
             {
               name: "In Voice Channel",
-              value: `<#${voiceChannel.id}> (${guildData.guild.name}:${voiceChannel.name})`,
+              value: `<#${voiceChannel.id}> (${voiceChannel.name})`,
             },
           ]);
         }
