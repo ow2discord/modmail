@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import type { SQL } from "bun";
 import {
   ChannelType,
+  DiscordAPIError,
+  Guild,
+  GuildMember,
   type Message,
   type MessageMentionOptions,
   type TextChannel,
@@ -18,6 +21,7 @@ import {
   getInboxGuild,
   getInboxMention,
   getInboxMentionAllowedMentions,
+  getMainGuilds,
   getValidMentionRoles,
   mentionRolesToAllowedMentions,
   mentionRolesToMention,
@@ -160,25 +164,49 @@ export async function createNewThreadForUser(
 
     console.log(`[NOTE] Creating new thread channel ${opts.channelName}`);
 
-    const banGuild = await bot.guilds.fetch(config.banGuildId);
+    // Find which main guilds this user is part of
+    const mainGuilds = getMainGuilds();
+    const userGuildData = new Map<
+      string,
+      { guild: Guild; member: GuildMember }
+    >();
+
+    for (const guild of mainGuilds) {
+      try {
+        const member = await guild.members.fetch(user.id);
+
+        if (member) {
+          userGuildData.set(guild.id, { guild, member });
+        }
+      } catch (e: unknown) {
+        // We can safely discard this error, because it just means we couldn't find the member in the guild
+        // Which - for obvious reasons - is completely okay.
+        if ((e as DiscordAPIError).code !== 10007) console.log(e);
+      }
+    }
+
     // Figure out which category we should place the thread channel in
     let newThreadCategoryId =
       (hookResult && hookResult.categoryId) || opts.categoryId || null;
 
-    // TODO: Clean this mess up, improve config
-    if (banGuild && (await banGuild.members.fetch(user.id)) !== null) {
-      if (
-        Object.hasOwn(
-          config.categoryAutomation?.newThreadFromServer || {},
-          config.banGuildId,
-        )
-      ) {
-        // @ts-ignore Fairly sure it exists, at this point.
-        newThreadCategoryId =
-          config.categoryAutomation?.newThreadFromServer[config.banGuildId] ||
-          config.categoryAutomation?.newThread ||
-          "";
+    if (
+      !newThreadCategoryId &&
+      config.categoryAutomation?.newThreadFromServer
+    ) {
+      // Categories for specific source guilds (in case of multiple main guilds)
+      for (const [guildId, categoryId] of Object.entries(
+        config.categoryAutomation.newThreadFromServer,
+      )) {
+        if (userGuildData.has(guildId)) {
+          newThreadCategoryId = categoryId;
+          break;
+        }
       }
+    }
+
+    if (!newThreadCategoryId && config.categoryAutomation?.newThread) {
+      // Blanket category id for all new threads (also functions as a fallback for the above)
+      newThreadCategoryId = config.categoryAutomation?.newThread;
     }
 
     // Attempt to create the inbox channel for this thread
@@ -233,7 +261,7 @@ export async function createNewThreadForUser(
       return null;
     }
 
-    newThread.postInfoHeader(user, opts.ignoreRequirements);
+    newThread.postInfoHeader(user, userGuildData, opts.ignoreRequirements);
 
     if (!quiet) {
       // Ping moderators of the new thread

@@ -1130,34 +1130,17 @@ export class Thread {
     throw "it was impossible to retrieve the thread channel";
   }
 
-  public async postInfoHeader(user: User, ignoreRequirements: boolean = false) {
+  public async postInfoHeader(
+    user: User,
+    userGuildData: Map<string, { guild: Guild; member: GuildMember }>,
+    ignoreRequirements: boolean = false,
+  ) {
     const initialMessage = await (await this.getThreadChannel()).send(
       `${user.username} Loading details...`,
     );
 
     const embed = new EmbedBuilder();
     if (user.avatarURL !== null) embed.setThumbnail(user.avatarURL());
-
-    // Find which main guilds this user is part of
-    const mainGuilds = getMainGuilds();
-    const userGuildData = new Map<
-      string,
-      { guild: Guild; member: GuildMember }
-    >();
-
-    for (const guild of mainGuilds) {
-      try {
-        const member = await guild.members.fetch(user.id);
-
-        if (member) {
-          userGuildData.set(guild.id, { guild, member });
-        }
-      } catch (e: unknown) {
-        // We can safely discard this error, because it just means we couldn't find the member in the guild
-        // Which - for obvious reasons - is completely okay.
-        if ((e as DiscordAPIError).code !== 10007) console.log(e);
-      }
-    }
 
     const userLogCount = await getClosedThreadCountByUserId(this.db, user.id);
     const infoHeaderItems = [];
