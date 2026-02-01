@@ -44,6 +44,12 @@ import {
   type ReplyOptions,
   type SendableChannels,
   type User,
+  MessageFlags,
+  ComponentBuilder,
+  ContainerBuilder,
+  TextDisplayBuilder,
+  SectionBuilder,
+  SeparatorBuilder,
 } from "discord.js";
 import humanizeDuration from "humanize-duration";
 import config from "../cfg";
@@ -519,7 +525,7 @@ export class Thread {
 
     if (msg.stickers) {
       const stickerLines = msg.stickers.map((sticker) => {
-        return `*Sent sticker "${sticker.name}":* https://media.discordapp.net/stickers/${sticker.id}.webp?size=160`;
+        return `*Sent sticker "(${sticker.name})[https://media.discordapp.net/stickers/${sticker.id}.webp?size=160]":*`;
       });
 
       messageContent += `\n\n${stickerLines.join("\n")}`;
@@ -1270,7 +1276,10 @@ export class Thread {
       const member = await guildData.member.fetch();
       if (config.rolesInThreadHeader && member.roles.cache.size > 0) {
         // Real main server - not ban appeals.
-        if (guildData.guild.id === "94882524378968064") {
+        if (
+          guildData.guild.id === "94882524378968064" ||
+          guildData.guild.id === "394676747876171796"
+        ) {
           for (const role of guildData.member.roles.cache.values()) {
             if (role.name.includes("She/Her")) pronouns.push("she/her");
             else if (role.name.includes("He/Him")) pronouns.push("he/him");
@@ -1366,22 +1375,27 @@ export class Thread {
 
       embed.addFields([
         {
-          name: `${Emoji.Muted} **This user is currently muted**\n`,
+          name: "",
+          value: `-# ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯`,
+        },
+        {
+          name: `${Emoji.Muted} **User is currently muted**\n`,
           value: "** **",
         },
       ]);
     }
 
+    // Remove ban time until we can be sure we can actually get it
     if (userBanned) {
       if (Colours.BanRed) embed.setColor(Colours.BanRed);
-      const banTime = userBanned
-        ? `<t:${(await userGuildData.get("94882524378968064")?.guild.bans.fetch(user.id)) || Date.now()}:d>`
-        : "an unknown time";
-
       embed.addFields([
         {
-          name: `${Emoji.Banned} **This user is currently banned**\n`,
-          value: `Banned at ${banTime}`,
+          name: "￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣",
+          value: "",
+        },
+        {
+          name: `${Emoji.Banned} **User is currently banned**\n`,
+          value: "",
         },
       ]);
     }
@@ -1389,7 +1403,7 @@ export class Thread {
     infoHeader += "\n────────────────";
 
     await initialMessage.edit({
-      content: "",
+      content: null,
       embeds: [embed],
     });
 
