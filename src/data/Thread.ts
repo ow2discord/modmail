@@ -1202,7 +1202,7 @@ export class Thread {
         .add("Oladele Green")
         .add("Helix Yellow");
       if (sortedRoles.some((el) => regularColours.has(el))) {
-        sortedRoles = sortedRoles.filter((role) => role !== "regular");
+        sortedRoles = sortedRoles.filter((role) => role !== "Regular");
       }
 
       const rolesForDisplay = sortedRoles
@@ -1258,7 +1258,7 @@ export class Thread {
         },
       ];
 
-      if (guildData.member.voice.channelId) {
+      if (guildData.member.voice.channelId && !muteStatus) {
         const voiceChannel = await guildData.guild.channels.fetch(
           guildData.member.voice.channelId,
         );
@@ -1271,7 +1271,7 @@ export class Thread {
 
           embed.addFields([
             {
-              name: `${Emoji.Volume} User is in VC`,
+              name: `${Emoji.Volume} User in VC`,
               value: `<#${voiceChannel.id}> (${voiceChannel.name})`,
             },
           ]);
