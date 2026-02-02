@@ -1271,7 +1271,7 @@ export class Thread {
 
           embed.addFields([
             {
-              name: "In voice channel",
+              name: `${Emoji.Volume} User is in VC`,
               value: `<#${voiceChannel.id}> (${voiceChannel.name})`,
             },
           ]);
@@ -1329,7 +1329,7 @@ export class Thread {
       embed.addFields([
         {
           name: `${Emoji.Muted} **User is currently muted**\n`,
-          value: "** **",
+          value: "",
         },
       ]);
 
@@ -1338,7 +1338,7 @@ export class Thread {
       embed.addFields([
         {
           name: `${Emoji.Banned} **User is currently banned**\n`,
-          value: "** **",
+          value: "",
         },
       ]);
     }
