@@ -1147,18 +1147,19 @@ export class Thread {
 
     let join = `${Emoji.Overwatch} unknown`;
     const guildStatus = await userGuildStatus(bot, user);
+
+    if (guildStatus.ban && !guildStatus.main) {
+      const time = Math.round(
+        (guildStatus.ban.joinedTimestamp || Date.now()) / 1000,
+      );
+      join = `${Emoji.Appeals} <t:${time}:d>`;
+    }
+
     if (guildStatus.main) {
       const time = Math.round(
         (guildStatus.main.joinedTimestamp || Date.now()) / 1000,
       );
       join = `${Emoji.Overwatch} <t:${time}:d>`;
-    }
-
-    if (guildStatus.ban) {
-      const time = Math.round(
-        (guildStatus.ban.joinedTimestamp || Date.now()) / 1000,
-      );
-      join = `${Emoji.Appeals} <t:${time}:d>`;
     }
 
     embed.addFields([
