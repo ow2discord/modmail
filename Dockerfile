@@ -8,6 +8,7 @@ COPY package.json bun.lockb* .
 RUN bun install --frozen-lockfile
 
 COPY ./src ./src
+COPY ./migrations ./migrations
 COPY tsconfig.json tsconfig.json
 
 CMD ["bun", "src/index.js"]
