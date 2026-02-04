@@ -1237,23 +1237,34 @@ export class Thread {
         inline: false,
       });
 
-      if (guildStatus.main.voice.channelId && !muteStatus) {
-        // const voiceChannel = await guildData.guild.channels.fetch(
-        // guildData.member.voice.channelId,
-        // );
-        // const channel = await guildStatus.main.voice.channel?.fetch();
-        const channel = guildStatus.main.voice.channel;
+      if (guildStatus?.main?.voice?.channelId && !muteStatus) {
+        let channelName = await (async () => {
+          try {
+            const voiceChannel =
+              await guildStatus?.main?.voice?.channel?.fetch();
 
-        if (channel && channel.isVoiceBased()) {
-          if (fields[fields.length - 1])
-            fields[fields.length - 1]!.value +=
-              `\n-# ${separator(channel.name.length * 2)}`;
-          fields.push({
-            name: `In Voice Channel`,
-            value: `<#${channel.id}> (${channel.name})`,
-            inline: false,
-          });
-        }
+            if (voiceChannel) {
+              // Add seperator line
+              if (fields[fields.length - 1])
+                fields[fields.length - 1]!.value +=
+                  `\n-# ${separator(voiceChannel.name.length * 2)}`;
+
+              // Return the channel name
+              return voiceChannel.name;
+            }
+          } catch (e) {
+            console.error(
+              `Failed to retrieve voice: ${guildStatus.main?.voice}`,
+            );
+          }
+          return " (unknown)";
+        })();
+
+        fields.push({
+          name: `In Voice Channel`,
+          value: `<#${guildStatus.main.voice.channelId}> (${channelName})`,
+          inline: false,
+        });
       }
     }
 
