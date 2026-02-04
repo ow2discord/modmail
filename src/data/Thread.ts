@@ -1241,7 +1241,8 @@ export class Thread {
         // const voiceChannel = await guildData.guild.channels.fetch(
         // guildData.member.voice.channelId,
         // );
-        const channel = await guildStatus.main.voice.channel?.fetch();
+        // const channel = await guildStatus.main.voice.channel?.fetch();
+        const channel = guildStatus.main.voice.channel;
 
         if (channel && channel.isVoiceBased()) {
           if (fields[fields.length - 1])
