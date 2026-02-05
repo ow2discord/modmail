@@ -1238,28 +1238,7 @@ export class Thread {
       });
 
       if (guildStatus?.main?.voice?.channelId && !muteStatus) {
-        let channelName = await (async () => {
-          try {
-            const voiceChannel =
-              guildStatus?.main?.voice.channel ||
-              (await guildStatus?.main?.voice?.channel?.fetch());
-
-            if (voiceChannel) {
-              // Add seperator line
-              if (fields[fields.length - 1])
-                fields[fields.length - 1]!.value +=
-                  `\n-# ${separator(voiceChannel.name.length * 2)}`;
-
-              // Return the channel name
-              return voiceChannel.name;
-            }
-          } catch (e) {
-            console.error(
-              `Failed to retrieve voice: ${guildStatus.main?.voice}`,
-            );
-          }
-          return " (unknown)";
-        })();
+        const channelName = guildStatus?.main?.voice.channel?.name || "unknown";
 
         fields.push({
           name: `In Voice Channel`,
