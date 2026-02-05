@@ -6,7 +6,7 @@ import {
   type HexColorString,
 } from "discord.js";
 import type { ModuleProps } from "../plugins";
-import { Colours, Emoji, Spacing } from "../style";
+import { Colours } from "../style";
 import { getMainGuilds } from "../utils";
 
 export default ({ commands, bot }: ModuleProps) => {
@@ -18,7 +18,7 @@ export default ({ commands, bot }: ModuleProps) => {
 
       const user = await bot.users.fetch(thread.user_id);
       if (!user) return;
-      const author = user;
+      const _author = user;
 
       // author name/id
       // participant mod names

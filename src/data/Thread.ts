@@ -25,6 +25,7 @@ import {
   DiscordAPIError,
   type DMChannel,
   EmbedBuilder,
+  type EmbedField,
   escapeMarkdown,
   type Guild,
   type GuildMember,
@@ -40,7 +41,6 @@ import {
   type ReplyOptions,
   type SendableChannels,
   type User,
-  type EmbedField,
 } from "discord.js";
 import humanizeDuration from "humanize-duration";
 import config from "../cfg";
@@ -1331,8 +1331,8 @@ export class Thread {
 
     if (muteStatus) {
       embed.setColor(Colours.MuteRed as HexColorString);
-      if (fields[fields.length - 1])
-        fields[fields.length - 1]!.value += `\n-# ${separator(20)}`;
+      const lastField = fields.at(-1);
+      if (lastField) lastField.value += `\n-# ${separator(20)}`;
 
       fields.push({
         name: `${Emoji.Muted} **User is currently muted**\n`,
@@ -1343,8 +1343,8 @@ export class Thread {
 
     if (userBanned) {
       embed.setColor(Colours.BanRed as HexColorString);
-      if (fields[fields.length - 1])
-        fields[fields.length - 1]!.value += `\n-# ${separator(20)}`;
+      const lastField = fields.at(-1);
+      if (lastField) lastField.value += `\n-# ${separator(20)}`;
 
       fields.push({
         name: `${Emoji.Banned} **User is currently banned**\n`,

@@ -17,7 +17,7 @@ import {
   type BeforeNewThreadHookResult,
   callBeforeNewThreadHooks,
 } from "../hooks/beforeNewThread";
-import { Emoji, UnicodePeriod } from "../style";
+import { UnicodePeriod } from "../style";
 import {
   getInboxGuild,
   getInboxMention,
@@ -36,7 +36,6 @@ const {
   accountAgeDeniedMessage: _accountAgeDeniedMessage,
   timeOnServerDeniedMessage: _timeOnServerDeniedMessage,
   anonymizeChannelName,
-  updateNotifications,
 } = cfg;
 
 let threadCreationQueue: Promise<unknown> = Promise.resolve();

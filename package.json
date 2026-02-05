@@ -11,9 +11,7 @@
 		"web": "bun --watch src/web.tsx",
 		"watch": "NODE_ENV=development bun --watch src/index.js",
 		"lint": "biome check ./src",
-		"lint-fix": "biome check --write --unsafe ./src",
-		"generate-config-jsdoc": "bun src/data/generateCfgJsdoc.js",
-		"generate-plugin-api-docs": "jsdoc2md -t docs/plugin-api-template.hbs src/pluginApi.js > docs/plugin-api.md",
+		"lint:fix": "biome check --write --unsafe ./src",
 		"migrate:up": "bun ./src/migrate.ts up",
 		"migrate:new": "bun ./src/migrate.ts new",
 		"migrate:down": "bun ./src/migrate.ts down"
@@ -39,7 +37,7 @@
 		"yargs-parser": "^21.1.1"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.3.11",
+		"@biomejs/biome": "^2.3.14",
 		"@types/bun": "^1.3.5",
 		"@types/humanize-duration": "^3.27.4",
 		"@types/ini": "^4.1.1",

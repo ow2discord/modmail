@@ -16,7 +16,7 @@ import * as threads from "./data/threads";
 import { getAllOpenThreads } from "./data/threads";
 import { useDb } from "./db";
 import { formatters } from "./formatters";
-import { getPluginAPI, loadPlugins } from "./plugins";
+import { createPluginProps, loadPlugins } from "./plugins";
 import { messageQueue } from "./queue";
 import * as utils from "./utils";
 import { getOrFetchChannel } from "./utils";
@@ -73,20 +73,13 @@ export async function start(bot: Client) {
       });
     });
 
-    console.log("Initializing...");
-
     initStatus(bot);
     initBaseMessageHandlers(bot);
 
     console.log("Loading plugins...");
-    const pluginResult = await loadAllPlugins(bot);
-    console.log(
-      `Loaded ${pluginResult.loadedCount} plugins (${pluginResult.baseCount} built-in plugins, ${pluginResult.externalCount} external plugins)`,
-    );
-
-    console.log("");
+    const pluginsLoaded = await loadAllPlugins(bot);
+    console.log(`Loaded ${pluginsLoaded} plugins`);
     console.log("Done! Now listening to DMs.");
-    console.log("");
 
     const openThreads = await getAllOpenThreads(db);
     for (const thread of openThreads) {
@@ -462,41 +455,12 @@ function initBaseMessageHandlers(bot: Client) {
       }
     }
 
-    if (threadMessage.isChat()) {
-      // If the deleted message was staff chatter in the thread channel, also delete it from the logs
-      thread.deleteChatMessageFromLogs(msg.id);
-    }
+    // If the deleted message was staff chatter in the thread channel, also delete it from the logs
+    if (threadMessage.isChat()) thread.deleteChatMessageFromLogs(msg.id);
   });
 }
 
-function getBasePlugins() {
-  return [
-    "file:./src/plugins/reply",
-    "file:./src/plugins/resetId",
-    "file:./src/plugins/close",
-    "file:./src/plugins/logs",
-    "file:./src/plugins/block",
-    "file:./src/plugins/move",
-    "file:./src/plugins/snippets",
-    "file:./src/plugins/suspend",
-    "file:./src/plugins/greeting",
-    "file:./src/plugins/typingProxy",
-    "file:./src/plugins/newthread",
-    "file:./src/plugins/id",
-    "file:./src/plugins/alert",
-    "file:./src/plugins/joinLeaveNotification",
-    "file:./src/plugins/roles",
-    "file:./src/plugins/notes",
-    "file:./src/plugins/info",
-  ];
-}
-
-function getAllPlugins() {
-  //  return [...getBasePlugins(), ...getExternalPlugins()];
-  return getBasePlugins();
-}
-
-async function loadAllPlugins(bot: Client) {
+async function loadAllPlugins(bot: Client): Promise<number> {
   // Initialize command manager
   const commands = createCommandManager(bot);
 
@@ -506,16 +470,6 @@ async function loadAllPlugins(bot: Client) {
     }
   }
 
-  // Load plugins
-  const basePlugins = getBasePlugins();
-  const plugins = getAllPlugins();
-
-  const pluginApi = getPluginAPI({ bot, db, config, commands });
-  await loadPlugins(plugins, pluginApi);
-
-  return {
-    loadedCount: plugins.length,
-    baseCount: basePlugins.length,
-    externalCount: 0, //externalPlugins.length,
-  };
+  const props = createPluginProps({ bot, db, config, commands });
+  return loadPlugins(props);
 }
