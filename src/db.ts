@@ -1,5 +1,5 @@
 import { SQL } from "bun";
-import config from "./cfg";
+import config from "./config";
 
 let db: SQL | null = null;
 

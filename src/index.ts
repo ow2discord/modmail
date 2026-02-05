@@ -5,7 +5,7 @@ import { serve } from "bun";
 import { BotError } from "./BotError";
 import bot from "./bot";
 import { getPrettyVersion } from "./botVersion";
-import cfg from "./cfg";
+import config from "./config";
 import { start } from "./main";
 import { migrateAllUp } from "./migrate";
 import { PluginInstallationError } from "./PluginInstallationError";
@@ -111,16 +111,6 @@ modules.forEach((mod) => {
 });
 
 (async () => {
-  // Make sure the database is up to date
-  // const _newMigrations = doMigration();
-  // const [_, newMigrations] = await knex.migrate.list();
-  // if (newMigrations.length > 0) {
-  // 	console.log(
-  // 		"Updating database. This can take a while. Don't close the bot!",
-  // 	);
-  // 	await knex.migrate.latest();
-  // 	console.log("Done!");
-  // }
   await migrateAllUp();
 
   // // Start the bot
@@ -129,6 +119,6 @@ modules.forEach((mod) => {
   // Run the webserver
   serve({
     fetch: web.fetch,
-    port: cfg.port,
+    port: config.port,
   });
 })();

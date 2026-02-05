@@ -21,7 +21,7 @@ import humanizeDuration from "humanize-duration";
 import { publicIp } from "public-ip";
 import { BotError } from "./BotError";
 import bot from "./bot";
-import config from "./cfg";
+import config from "./config";
 import type Thread from "./data/Thread";
 
 const userMentionRegex = /^<@!?([0-9]+?)>$/;

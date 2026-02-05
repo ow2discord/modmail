@@ -1,9 +1,7 @@
 import type { GuildMember, Role } from "discord.js";
-import config from "../cfg";
+import config from "../config";
 import { useDb } from "../db";
 import { getMainRole } from "../utils";
-
-const { fallbackRoleName } = config;
 
 const db = useDb();
 
@@ -91,7 +89,7 @@ export async function getModeratorDefaultDisplayRoleName(
   const defaultDisplayRole = await getModeratorDefaultDisplayRole(moderator);
   return defaultDisplayRole
     ? defaultDisplayRole.name
-    : fallbackRoleName || null;
+    : config.fallbackRoleName || null;
 }
 
 export async function getModeratorThreadDisplayRole(
@@ -117,7 +115,9 @@ export async function getModeratorThreadDisplayRoleName(
     moderator,
     thread_id,
   );
-  return threadDisplayRole ? threadDisplayRole.name : fallbackRoleName || null;
+  return threadDisplayRole
+    ? threadDisplayRole.name
+    : config.fallbackRoleName || null;
 }
 
 export default {

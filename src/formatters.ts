@@ -1,5 +1,5 @@
 import bot from "./bot";
-import config from "./cfg";
+import config from "./config";
 import { ThreadMessageType } from "./data/constants";
 import type Thread from "./data/Thread";
 import ThreadMessage from "./data/ThreadMessage";

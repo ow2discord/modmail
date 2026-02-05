@@ -1,7 +1,7 @@
 import type { SQL } from "bun";
 import type { Client } from "discord.js";
-import type { ModmailConfig } from "./cfg";
 import type { Commands } from "./commands";
+import type { ModmailConfig } from "./config";
 import { downloadAttachment, saveAttachment } from "./data/attachments";
 import displayRoles from "./data/displayRoles";
 import {

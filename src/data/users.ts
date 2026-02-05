@@ -1,5 +1,5 @@
 import type { Client, GuildMember, User } from "discord.js";
-import config from "../cfg";
+import config from "../config";
 
 export async function userGuildStatus(
   bot: Client,

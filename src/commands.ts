@@ -6,7 +6,7 @@ import {
   type TParseableSignature,
   TypeConversionError,
 } from "knub-command-manager";
-import config from "./cfg";
+import config from "./config";
 import type Thread from "./data/Thread";
 import * as threads from "./data/threads";
 import { findOpenThreadByChannelId } from "./data/threads";

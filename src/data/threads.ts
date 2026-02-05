@@ -11,8 +11,7 @@ import {
   type User,
 } from "discord.js";
 import { v4 } from "uuid";
-import cfg from "../cfg";
-import config from "../cfg";
+import config from "../config";
 import {
   type BeforeNewThreadHookResult,
   callBeforeNewThreadHooks,
@@ -31,12 +30,6 @@ import {
 import { ThreadMessageType, ThreadStatus } from "./constants";
 import Thread, { type ThreadProps } from "./Thread";
 import ThreadMessage from "./ThreadMessage";
-
-const {
-  accountAgeDeniedMessage: _accountAgeDeniedMessage,
-  timeOnServerDeniedMessage: _timeOnServerDeniedMessage,
-  anonymizeChannelName,
-} = cfg;
 
 let threadCreationQueue: Promise<unknown> = Promise.resolve();
 
@@ -116,9 +109,9 @@ export async function createNewThreadForUser(
       );
 
       if (user.createdAt >= requiredAge) {
-        if (_accountAgeDeniedMessage) {
+        if (config.accountAgeDeniedMessage) {
           const accountAgeDeniedMessage = readMultilineConfigValue(
-            _accountAgeDeniedMessage,
+            config.accountAgeDeniedMessage,
           );
           const privateChannel = user.dmChannel;
           if (privateChannel) {
@@ -135,7 +128,7 @@ export async function createNewThreadForUser(
     //
     let channelName = formatUsername(user.username);
 
-    if (anonymizeChannelName) {
+    if (config.anonymizeChannelName) {
       channelName = createHash("md5")
         .update(channelName + Date.now())
         .digest("hex")

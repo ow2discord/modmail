@@ -1,14 +1,12 @@
 import { accessSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { AttachmentBuilder } from "discord.js";
-import cfg from "../cfg";
+import config from "../config";
 import { formatters } from "../formatters";
 import { getSelfUrl } from "../utils";
 import { ThreadStatus } from "./constants";
 import type Thread from "./Thread";
 import type ThreadMessage from "./ThreadMessage";
-
-const { logOptions } = cfg;
 
 interface LogStorageType {
   shouldSave?: (thread: Thread) => Promise<boolean> | boolean;
@@ -142,7 +140,7 @@ export const getLogCustomResponse = async (_thread: Thread) => {
 
 export const getLogAttachmentFilename = (threadId: string) => {
   const filename = `${threadId}.txt`;
-  const fullPath = join(logOptions?.attachmentDirectory || "", filename);
+  const fullPath = join(config.logOptions?.attachmentDirectory || "", filename);
 
   return { filename, fullPath };
 };

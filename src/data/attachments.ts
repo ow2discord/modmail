@@ -2,7 +2,7 @@ import { access, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Attachment, SendableChannels } from "discord.js";
-import config from "../cfg";
+import config from "../config";
 import * as utils from "../utils";
 import { getSelfUrl } from "../utils";
 

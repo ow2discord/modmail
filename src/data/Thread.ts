@@ -1,22 +1,3 @@
-import bot from "../bot";
-import cfg from "../cfg";
-import { chunkMessageLines, messageContentIsWithinMaxLength } from "../utils";
-
-const {
-  autoAlertDelay: _autoAlertDelay,
-  useDisplaynames,
-  useNicknames,
-  breakFormattingForNames,
-  relayInlineReplies,
-  allowSnippets,
-  allowInlineSnippets,
-  inlineSnippetStart,
-  inlineSnippetEnd,
-  errorOnUnknownInlineSnippet,
-  attachmentStorage,
-  autoAlert,
-} = cfg;
-
 import type { SQL } from "bun";
 import {
   type Attachment,
@@ -43,7 +24,8 @@ import {
   type User,
 } from "discord.js";
 import humanizeDuration from "humanize-duration";
-import config from "../cfg";
+import bot from "../bot";
+import config from "../config";
 import { formatters } from "../formatters";
 import { callAfterNewMessageReceivedHooks } from "../hooks/afterNewMessageReceived";
 import { callAfterThreadCloseHooks } from "../hooks/afterThreadClose";
@@ -58,7 +40,11 @@ import {
   Spacing,
   sortRoles,
 } from "../style";
-import { messageContentToAdvancedMessageContent } from "../utils";
+import {
+  chunkMessageLines,
+  messageContentIsWithinMaxLength,
+  messageContentToAdvancedMessageContent,
+} from "../utils";
 import { convertDelayStringToMS } from "../utils/time";
 import { saveAttachment } from "./attachments";
 import { isBlocked } from "./blocked";
@@ -234,12 +220,14 @@ export class Thread {
   ): Promise<boolean> {
     if (!moderator) return false;
 
-    const regularName = useDisplaynames
+    const regularName = config.useDisplaynames
       ? moderator.user.globalName || moderator.user.username
       : moderator.user.username;
     let moderatorName =
-      useNicknames && moderator.nickname ? moderator.nickname : regularName;
-    if (breakFormattingForNames) {
+      config.useNicknames && moderator.nickname
+        ? moderator.nickname
+        : regularName;
+    if (config.breakFormattingForNames) {
       moderatorName = moderatorName.replace(escapeFormattingRegex, "\\$&");
     }
 
@@ -254,7 +242,7 @@ export class Thread {
     };
 
     // Handle replies
-    if (relayInlineReplies && messageReference) {
+    if (config.relayInlineReplies && messageReference) {
       const repliedTo = await this.getThreadMessageForMessageId(
         messageReference.messageId || "",
       );
@@ -263,7 +251,7 @@ export class Thread {
       }
     }
 
-    if (allowSnippets && allowInlineSnippets) {
+    if (config.allowSnippets && config.allowInlineSnippets) {
       // Replace {{snippet}} with the corresponding snippet
       // The beginning and end of the variable - {{ and }} - can be changed with the config options
       // config.inlineSnippetStart and config.inlineSnippetEnd
@@ -272,7 +260,7 @@ export class Thread {
       const unknownSnippets = new Set();
       text = text.replace(
         new RegExp(
-          `${inlineSnippetStart}(\\s*\\S+?\\s*)${inlineSnippetEnd}`,
+          `${config.inlineSnippetStart}(\\s*\\S+?\\s*)${config.inlineSnippetEnd}`,
           "ig",
         ),
         (orig, trigger) => {
@@ -288,7 +276,7 @@ export class Thread {
         },
       );
 
-      if (errorOnUnknownInlineSnippet && unknownSnippets.size > 0) {
+      if (config.errorOnUnknownInlineSnippet && unknownSnippets.size > 0) {
         this.postSystemMessage(
           `The following snippets used in the reply do not exist:\n${Array.from(unknownSnippets).join(", ")}`,
         );
@@ -378,7 +366,7 @@ export class Thread {
     threadMessage.dm_message_id = dmMessage.id;
 
     // Special case: "original" attachments
-    if (attachmentStorage === "original") {
+    if (config.attachmentStorage === "original") {
       threadMessage.attachments = dmMessage.attachments.map((att) => att.url);
     }
 
@@ -403,7 +391,7 @@ export class Thread {
     }
 
     // If enabled, set up a reply alert for the moderator after a slight delay
-    if (autoAlert) {
+    if (config.autoAlert) {
       this._startAutoAlertTimer(moderator.id);
     }
 
@@ -478,7 +466,7 @@ export class Thread {
     // Handle replies
     let messageReply: MessageResolvable = "";
     if (
-      relayInlineReplies &&
+      config.relayInlineReplies &&
       msg.reference &&
       msg.reference.type === MessageReferenceType.Default &&
       msg.reference.messageId
@@ -539,7 +527,7 @@ export class Thread {
       thread_id: this.id,
       message_type: ThreadMessageType.FromUser,
       user_id: this.user_id,
-      user_name: useDisplaynames
+      user_name: config.useDisplaynames
         ? msg.author.globalName || msg.author.username
         : msg.author.username,
       body: messageContent,
@@ -728,7 +716,7 @@ export class Thread {
       thread_id: this.id,
       message_type: ThreadMessageType.Chat,
       user_id: msg.author.id,
-      user_name: useDisplaynames
+      user_name: config.useDisplaynames
         ? msg.author.globalName || msg.author.username
         : msg.author.username,
       body: msg.content,
@@ -747,7 +735,7 @@ export class Thread {
       thread_id: this.id,
       message_type: ThreadMessageType.Command,
       user_id: msg.author.id,
-      user_name: useDisplaynames
+      user_name: config.useDisplaynames
         ? msg.author.globalName || msg.author.username
         : msg.author.username,
       body: msg.content,
@@ -853,7 +841,7 @@ export class Thread {
     user: User,
     silent: boolean,
   ): Promise<void> {
-    const closed_username = useDisplaynames
+    const closed_username = config.useDisplaynames
       ? user.globalName || user.username
       : user.username;
 
@@ -896,7 +884,7 @@ export class Thread {
   }
 
   async scheduleSuspend(delay_ms: number, user: User): Promise<void> {
-    const suspend_name = useDisplaynames
+    const suspend_name = config.useDisplaynames
       ? user.globalName || user.username
       : user.username;
 

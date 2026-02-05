@@ -8,8 +8,8 @@ import {
   MessageType,
 } from "discord.js";
 import { BotError } from "./BotError";
-import config from "./cfg";
 import { createCommandManager } from "./commands";
+import config from "./config";
 import * as blocked from "./data/blocked";
 import { ACCIDENTAL_THREAD_MESSAGES } from "./data/constants";
 import * as threads from "./data/threads";
