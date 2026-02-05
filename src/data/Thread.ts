@@ -1210,6 +1210,10 @@ export class Thread {
       if (guildStatus?.main?.voice?.channelId && !muteStatus) {
         const channelName = guildStatus?.main?.voice.channel?.name || "unknown";
 
+        const lastField = fields.at(-1);
+        if (lastField)
+          lastField.value += `\n-# ${separator((guildStatus?.main?.voice?.channel?.name?.length || 10) * 2)}}`;
+
         fields.push({
           name: `In Voice Channel`,
           value: `<#${guildStatus.main.voice.channelId}> (${channelName})`,
@@ -1313,14 +1317,19 @@ export class Thread {
 
     if (userBanned) {
       embed.setColor(Colours.BanRed as HexColorString);
-      const lastField = fields.at(-1);
-      if (lastField) lastField.value += `\n-# ${separator(20)}`;
 
-      fields.push({
-        name: `${Emoji.Banned} **User is currently banned**\n`,
-        value: "",
-        inline: false,
-      });
+      fields.push(
+        {
+          name: "",
+          value: `\n-# ${separator(20)}`,
+          inline: false,
+        },
+        {
+          name: `${Emoji.Banned} **User is currently banned**\n`,
+          value: "",
+          inline: false,
+        },
+      );
     }
 
     embed.setFields(fields);
