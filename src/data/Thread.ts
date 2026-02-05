@@ -1320,7 +1320,7 @@ export class Thread {
 
       fields.push(
         {
-          name: "",
+          name: `${user.displayName}`,
           value: `\n-# ${separator(20)}`,
           inline: false,
         },
