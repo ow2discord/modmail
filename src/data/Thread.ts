@@ -1241,7 +1241,8 @@ export class Thread {
         let channelName = await (async () => {
           try {
             const voiceChannel =
-              await guildStatus?.main?.voice?.channel?.fetch();
+              guildStatus?.main?.voice.channel ||
+              (await guildStatus?.main?.voice?.channel?.fetch());
 
             if (voiceChannel) {
               // Add seperator line
