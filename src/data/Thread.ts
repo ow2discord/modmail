@@ -1212,7 +1212,7 @@ export class Thread {
 
         const lastField = fields.at(-1);
         if (lastField)
-          lastField.value += `\n-# ${separator((guildStatus?.main?.voice?.channel?.name?.length || 10) * 2)}}`;
+          lastField.value += `\n-# ${separator((guildStatus?.main?.voice?.channel?.name?.length || 10) * 2)}`;
 
         fields.push({
           name: `In Voice Channel`,
