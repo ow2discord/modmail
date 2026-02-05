@@ -1273,16 +1273,13 @@ export class Thread {
       ];
 
       if (guildData.member.voice.channelId && !muteStatus) {
-        const voiceChannel = await guildData.guild.channels.fetch(
-          guildData.member.voice.channelId,
-        );
+        const voiceChannel =
+          guildData.member?.voice?.channel?.name || "unknown";
 
-        if (voiceChannel?.isVoiceBased()) {
-          headerItems.push({
-            name: "Voice Channel",
-            value: escapeMarkdown(voiceChannel.name),
-          });
-        }
+        headerItems.push({
+          name: "Voice Channel",
+          value: escapeMarkdown(voiceChannel),
+        });
       }
 
       const member = await guildData.member.fetch();
