@@ -49,61 +49,38 @@ export default ({ config, commands, db }: ModuleProps) => {
   scheduledCloseLoop();
 
   // Close a thread. Closing a thread saves a log of the channel's contents and then deletes the channel.
-  commands.addGlobalCommand(
+  commands.addInboxThreadCommand(
     "close",
     "[opts...]",
-    async (msg, args) => {
-      let thread: Thread | null = null;
+    async (msg, args, thread) => {
       let closedBy = "Nobody";
 
       const hasCloseMessage = !!config.closeMessage;
       let silentClose = false;
       let suppressSystemMessages = false;
 
-      if (msg.channel instanceof DMChannel) {
-        // User is closing the thread by themselves (if enabled)
-        if (!config.allowUserClose) return;
-        if (await blocked.isBlocked(msg.author.id)) return;
+      const opts = (args.opts as Array<string>) || [];
 
-        thread = await threads.findOpenThreadByUserId(db, msg.author.id);
-        if (!thread) return;
-
-        // We need to add this operation to the message queue so we don't get a race condition
-        // between showing the close command in the thread and closing the thread
-        await messageQueue.add(async () => {
-          thread?.postSystemMessage("Thread closed by user, closing...");
-          suppressSystemMessages = true;
-        });
-
-        closedBy = "the user";
-      } else {
-        // A staff member is closing the thread
-        if (!(await messageIsOnInboxServer(msg))) return;
-        if (!isStaff(msg.member)) return;
-
-        thread = await threads.findOpenThreadByChannelId(db, msg.channel.id);
-        if (!thread) return;
-
-        const opts = (args.opts as Array<string>) || [];
-
-        if (args.cancel || opts.includes("cancel") || opts.includes("c")) {
-          // Cancel timed close
-          if (thread.scheduled_close_at) {
-            await thread.cancelScheduledClose();
-            thread.postSystemMessage("Cancelled scheduled closing");
-          }
-
-          return;
+      if (args.cancel || opts.includes("cancel") || opts.includes("c")) {
+        // Cancel timed close
+        if (thread.scheduled_close_at) {
+          await thread.cancelScheduledClose();
+          thread.postSystemMessage("Cancelled scheduled closing");
         }
 
-        // Silent close (= no close message)
-        if (args.silent || opts.includes("silent") || opts.includes("s")) {
-          silentClose = true;
-        }
+        return;
+      }
 
-        // Timed close
+      // Silent close (= no close message)
+      if (args.silent || opts.includes("silent") || opts.includes("s")) {
+        silentClose = true;
+      }
+
+      if (opts.length > 0) {
         try {
           const delay = await getDelayFromArgs(opts);
+          console.log(delay);
+
           if (delay !== null) {
             await thread.scheduleClose(delay, msg.author, silentClose);
 
@@ -125,6 +102,12 @@ export default ({ config, commands, db }: ModuleProps) => {
 
           return;
         }
+
+        thread.postSystemMessage({
+          content:
+            "Invalid delay duration given. Expected format example for 10 days, 11 hours, 2 minutes, and 56 seconds: 10d11h2m56s",
+        });
+        return;
       }
 
       // Regular close

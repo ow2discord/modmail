@@ -293,16 +293,19 @@ async function handleInboxServerMessage(
       msg.content.startsWith(config.snippetPrefixAnon));
 
   const thread = await threads.findByChannelId(db, msg.channel.id);
-  if (!thread) return;
 
-  if (isSnippet) {
+  if (isSnippet && thread) {
     await handleSnippet(
       msg,
       config,
       thread,
       msg.content.startsWith(config.snippetPrefixAnon),
     );
-  } else if (isCommand) {
+
+    return;
+  }
+
+  if (isCommand) {
     if (thread) {
       // Thread-specific command
       await commands.handleCommand(msg, "thread");
@@ -311,10 +314,12 @@ async function handleInboxServerMessage(
       // Inbox server command (not in a thread)
       await commands.handleCommand(msg, "inbox");
     }
+
+    await commands.handleCommand(msg, "global");
     return;
   }
 
-  if (!msg.author.bot && config.alwaysReply) {
+  if (!msg.author.bot && config.alwaysReply && thread) {
     const author = await msg.guild?.members.fetch(msg.author.id);
     if (!msg.member) return;
 
@@ -333,7 +338,7 @@ async function handleInboxServerMessage(
     if (replied) msg.delete();
   } else {
     // Otherwise just save the messages as "chat" in the logs
-    thread.saveChatMessageToLogs(msg);
+    if (thread) thread.saveChatMessageToLogs(msg);
   }
 }
 
