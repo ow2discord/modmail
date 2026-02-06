@@ -1,108 +1,14 @@
-import { Collection, Events } from "discord.js";
+import { Collection, Message } from "discord.js";
 import { parseArguments } from "knub-command-manager";
 import type { Snippet } from "../data/Snippet";
 import * as snippets from "../data/snippets";
-import { findByChannelId } from "../data/threads";
 import type { ModuleProps } from "../plugins";
-import {
-  disableCodeBlocks,
-  isStaff,
-  messageIsOnInboxServer,
-  postSystemMessageWithFallback,
-} from "../utils";
+import { disableCodeBlocks, postSystemMessageWithFallback } from "../utils";
+import type Thread from "../data/Thread";
+import { type ModmailConfig } from "../config";
 
-export default ({ bot, db, config, commands }: ModuleProps) => {
+export default ({ config, commands }: ModuleProps) => {
   if (!config.allowSnippets) return;
-
-  function renderSnippet(body: string, args: Array<string>) {
-    return body
-      .replace(/(?<!\\){\d+}/g, (match) => {
-        const index = parseInt(match.slice(1, -1), 10) - 1;
-        return args[index] != null ? args[index] : match;
-      })
-      .replace(/\\{/g, "{");
-  }
-
-  /**
-   * When a staff member uses a snippet (snippet prefix + trigger word), find the snippet and post it as a reply in the thread
-   */
-  bot.on(Events.MessageCreate, async (msg) => {
-    if (!(await messageIsOnInboxServer(msg))) return;
-    if (!isStaff(msg.member)) return;
-
-    if (
-      msg.author.bot ||
-      !msg.content ||
-      !config.snippetPrefixAnon ||
-      !config.snippetPrefix
-    )
-      return;
-    if (!msg.content) return;
-    if (
-      !msg.content.startsWith(config.snippetPrefix) &&
-      !msg.content.startsWith(config.snippetPrefixAnon)
-    )
-      return;
-
-    let snippetPrefix: string;
-    let isAnonymous: boolean;
-
-    if (config.snippetPrefixAnon.length > config.snippetPrefix.length) {
-      // Anonymous prefix is longer -> check it first
-      if (msg.content.startsWith(config.snippetPrefixAnon)) {
-        snippetPrefix = config.snippetPrefixAnon;
-        isAnonymous = true;
-      } else {
-        snippetPrefix = config.snippetPrefix;
-        isAnonymous = false;
-      }
-    } else {
-      // Regular prefix is longer -> check it first
-      if (msg.content.startsWith(config.snippetPrefix)) {
-        snippetPrefix = config.snippetPrefix;
-        isAnonymous = false;
-      } else {
-        snippetPrefix = config.snippetPrefixAnon;
-        isAnonymous = true;
-      }
-    }
-
-    if (config.forceAnon) {
-      isAnonymous = true;
-    }
-
-    const thread = await findByChannelId(db, msg.channel.id);
-    if (!thread) return;
-
-    const snippetInvoke = msg.content.slice(snippetPrefix.length);
-    if (!snippetInvoke) return;
-
-    const matches = snippetInvoke.match(/(\S+)(?:\s+(.*))?/s);
-    if (!matches || matches.length < 2) return;
-
-    const trigger = matches[1];
-    const rawArgs = matches[2] || "";
-    if (!trigger) return;
-
-    const snippet = await snippets.get(trigger);
-    if (!snippet) return;
-
-    const args = (rawArgs ? parseArguments(rawArgs) : []).map(
-      (arg) => arg.value,
-    );
-    const rendered = renderSnippet(snippet.body, args);
-
-    if (!msg.member) return;
-
-    const replied = await thread.replyToUser(
-      msg.member,
-      rendered,
-      new Collection(),
-      isAnonymous,
-      msg.reference,
-    );
-    if (replied) msg.delete();
-  });
 
   // Show or add a snippet
   commands.addInboxServerCommand(
@@ -237,3 +143,49 @@ export default ({ bot, db, config, commands }: ModuleProps) => {
     },
   );
 };
+
+export async function handleSnippet(
+  msg: Message,
+  config: ModmailConfig,
+  thread: Thread,
+  anon: boolean,
+) {
+  anon = config.forceAnon ? config.forceAnon : anon;
+  const snippetInvoke = msg.content.slice(
+    anon ? config.snippetPrefixAnon.length : config.snippetPrefix.length,
+  );
+  if (!snippetInvoke) return;
+
+  const matches = snippetInvoke.match(/(\S+)(?:\s+(.*))?/s);
+  if (!matches || matches.length < 2) return;
+
+  const trigger = matches[1];
+  const rawArgs = matches[2] || "";
+  if (!trigger) return;
+
+  const snippet = await snippets.get(trigger);
+  if (!snippet) return;
+
+  const args = (rawArgs ? parseArguments(rawArgs) : []).map((arg) => arg.value);
+
+  const renderSnippet = (body: string, args: Array<string>) =>
+    body
+      .replace(/(?<!\\){\d+}/g, (match) => {
+        const index = parseInt(match.slice(1, -1), 10) - 1;
+        return args[index] != null ? args[index] : match;
+      })
+      .replace(/\\{/g, "{");
+
+  const rendered = renderSnippet(snippet.body, args);
+
+  if (!msg.member) return;
+
+  const replied = await thread.replyToUser(
+    msg.member,
+    rendered,
+    new Collection(),
+    anon,
+    msg.reference,
+  );
+  if (replied) msg.delete();
+}

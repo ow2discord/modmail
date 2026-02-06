@@ -1,4 +1,4 @@
-import { DMChannel, Events, GuildChannel } from "discord.js";
+import { DMChannel } from "discord.js";
 import * as blocked from "../data/blocked";
 import { ThreadMessageType } from "../data/constants";
 import { getLogCustomResponse, getLogFile, getLogUrl } from "../data/logs";
@@ -8,7 +8,6 @@ import { getThreadsThatShouldBeClosed } from "../data/threads";
 import type { ModuleProps } from "../plugins";
 import { messageQueue } from "../queue";
 import {
-  getInboxGuild,
   humanizeDelay,
   isStaff,
   messageIsOnInboxServer,
@@ -18,65 +17,7 @@ import {
 } from "../utils";
 import { getDelayFromArgs } from "../utils/time";
 
-export default ({ bot, config, commands, db }: ModuleProps) => {
-  async function getMessagesAmounts(thread: Thread) {
-    const messages = await thread.getThreadMessages();
-    const chatMessages = [];
-    const toUserMessages = [];
-    const fromUserMessages = [];
-
-    messages.forEach((message) => {
-      switch (message.message_type) {
-        case ThreadMessageType.Chat:
-          chatMessages.push(message);
-          break;
-
-        case ThreadMessageType.ToUser:
-          toUserMessages.push(message);
-          break;
-
-        case ThreadMessageType.FromUser:
-          fromUserMessages.push(message);
-          break;
-      }
-    });
-
-    return [
-      `**${fromUserMessages.length}** message${fromUserMessages.length !== 1 ? "s" : ""} from the user`,
-      `, **${toUserMessages.length}** message${toUserMessages.length !== 1 ? "s" : ""} to the user`,
-      ` and **${chatMessages.length}** internal chat message${chatMessages.length !== 1 ? "s" : ""}.`,
-    ].join("");
-  }
-
-  async function sendCloseNotification(thread: Thread, body: string) {
-    const logCustomResponse = await getLogCustomResponse(thread);
-    if (logCustomResponse) {
-      postLog(body);
-      return;
-    }
-
-    body = `${body}\n${await getMessagesAmounts(thread)}`;
-
-    const logUrl = await getLogUrl(thread);
-    if (logUrl) {
-      postLog(
-        trimAll(`
-          ${body}
-          Logs: ${logUrl}
-        `),
-      );
-      return;
-    }
-
-    const logFile = await getLogFile(thread);
-    if (logFile) {
-      postLog(body, [logFile]);
-      return;
-    }
-
-    postLog(body);
-  }
-
+export default ({ config, commands, db }: ModuleProps) => {
   // Check for threads that are scheduled to be closed and close them
   async function applyScheduledCloses() {
     const threadsToBeClosed = await getThreadsThatShouldBeClosed(db);
@@ -213,28 +154,61 @@ export default ({ bot, config, commands, db }: ModuleProps) => {
       ],
     },
   );
-
-  // Auto-close threads if their channel is deleted
-  bot.on(Events.ChannelDelete, async (channel) => {
-    if (!(channel instanceof GuildChannel)) return;
-    if (channel.guild.id !== getInboxGuild().id) return;
-
-    const thread = await threads.findOpenThreadByChannelId(db, channel.id);
-    if (!thread) return;
-
-    console.log(
-      `[INFO] Auto-closing thread with ${thread.user_name} because the channel was deleted`,
-    );
-    if (config.closeMessage) {
-      const closeMessage = readMultilineConfigValue(config.closeMessage);
-      await thread.sendSystemMessageToUser(closeMessage).catch(() => {});
-    }
-
-    await thread.close(true);
-
-    await sendCloseNotification(
-      thread,
-      `Modmail thread #${thread.thread_number} with ${thread.user_name} (${thread.user_id}) was closed automatically because the channel was deleted`,
-    );
-  });
 };
+
+export async function sendCloseNotification(thread: Thread, body: string) {
+  const getMessagesAmounts = async () => {
+    const messages = await thread.getThreadMessages();
+    const chatMessages = [];
+    const toUserMessages = [];
+    const fromUserMessages = [];
+
+    messages.forEach((message) => {
+      switch (message.message_type) {
+        case ThreadMessageType.Chat:
+          chatMessages.push(message);
+          break;
+
+        case ThreadMessageType.ToUser:
+          toUserMessages.push(message);
+          break;
+
+        case ThreadMessageType.FromUser:
+          fromUserMessages.push(message);
+          break;
+      }
+    });
+
+    return [
+      `**${fromUserMessages.length}** message${fromUserMessages.length !== 1 ? "s" : ""} from the user`,
+      `, **${toUserMessages.length}** message${toUserMessages.length !== 1 ? "s" : ""} to the user`,
+      ` and **${chatMessages.length}** internal chat message${chatMessages.length !== 1 ? "s" : ""}.`,
+    ].join("");
+  };
+  const logCustomResponse = await getLogCustomResponse(thread);
+  if (logCustomResponse) {
+    postLog(body);
+    return;
+  }
+
+  body = `${body}\n${await getMessagesAmounts()}`;
+
+  const logUrl = await getLogUrl(thread);
+  if (logUrl) {
+    postLog(
+      trimAll(`
+          ${body}
+          Logs: ${logUrl}
+        `),
+    );
+    return;
+  }
+
+  const logFile = await getLogFile(thread);
+  if (logFile) {
+    postLog(body, [logFile]);
+    return;
+  }
+
+  postLog(body);
+}

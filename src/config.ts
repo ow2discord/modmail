@@ -41,8 +41,8 @@ export interface ModmailConfig {
   mainGuildId?: string[];
   mailGuildId?: string;
   prefix: string;
-  snippetPrefix?: string;
-  snippetPrefixAnon?: string;
+  snippetPrefix: string;
+  snippetPrefixAnon: string;
   status?: string;
   statusType?: ActivityType;
   statusUrl?: string;
@@ -159,6 +159,8 @@ const config: ModmailConfig = {
   },
   overwatchGuildId: "94882524378968064",
   banGuildId: "587215460127473703",
+  snippetPrefix: "!!",
+  snippetPrefixAnon: "!!!",
 };
 
 // Auto-detected config files, in priority order
@@ -465,6 +467,12 @@ if (config.statusType === "streaming") {
       'When statusType is set to "streaming", statusUrl must be set to a valid Twitch channel URL, such as https://www.twitch.tv/Dragory',
     ]);
   }
+}
+
+if (config.snippetPrefixAnon.length < config.snippetPrefix.length) {
+  exitWithConfigurationErrors([
+    "The anonymous snippet prefix *must* be longer than the non-anonymous prefix.",
+  ]);
 }
 
 // FIXME: this is just horrid lol

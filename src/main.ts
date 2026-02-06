@@ -19,6 +19,8 @@ import { useDb } from "./db";
 import { createPluginProps, loadPlugins } from "./plugins";
 import { messageQueue } from "./queue";
 import * as utils from "./utils";
+import { handleSnippet } from "./plugins/snippets";
+import { sendCloseNotification } from "./plugins/close";
 
 const db = useDb();
 
@@ -110,7 +112,7 @@ function waitForGuild(bot: Client, guildId: string) {
         resolve();
       }
     };
-    bot.on("guildCreate", handler);
+    bot.on(Events.GuildCreate, handler);
   });
 }
 
@@ -159,6 +161,30 @@ function initialiseListeners(bot: Client, commands: Commands) {
 
   bot.on(Events.MessageDelete, async (msg) => {
     await handleMessageDelete(bot, msg);
+  });
+
+  bot.on(Events.ChannelDelete, async (channel) => {
+    if (channel.isDMBased()) return;
+
+    if (channel.guildId || channel.guildId !== utils.getInboxGuild().id) return;
+
+    const thread = await threads.findOpenThreadByChannelId(db, channel.id);
+    if (!thread) return;
+
+    console.log(
+      `[INFO] Auto-closing thread with ${thread.user_name} because the channel was deleted`,
+    );
+    if (config.closeMessage) {
+      const closeMessage = utils.readMultilineConfigValue(config.closeMessage);
+      await thread.sendSystemMessageToUser(closeMessage).catch(() => {});
+    }
+
+    await thread.close(true);
+
+    await sendCloseNotification(
+      thread,
+      `Modmail thread #${thread.thread_number} with ${thread.user_name} (${thread.user_id}) was closed automatically because the channel was deleted`,
+    );
   });
 }
 
@@ -262,12 +288,21 @@ async function handleInboxServerMessage(
 
   // Check if this is a snippet (handled separately in snippets plugin)
   const isSnippet =
-    !msg.author.bot && msg.content.startsWith(config.snippetPrefix || "!!");
+    !msg.author.bot &&
+    (msg.content.startsWith(config.snippetPrefix) ||
+      msg.content.startsWith(config.snippetPrefixAnon));
 
-  if (isCommand && !isSnippet) {
-    // Handle commands
-    const thread = await threads.findByChannelId(db, msg.channel.id);
+  const thread = await threads.findByChannelId(db, msg.channel.id);
+  if (!thread) return;
 
+  if (isSnippet) {
+    await handleSnippet(
+      msg,
+      config,
+      thread,
+      msg.content.startsWith(config.snippetPrefixAnon),
+    );
+  } else if (isCommand) {
     if (thread) {
       // Thread-specific command
       await commands.handleCommand(msg, "thread");
@@ -278,10 +313,6 @@ async function handleInboxServerMessage(
     }
     return;
   }
-
-  // Not a command - check if it's a staff message in a thread
-  const thread = await threads.findByChannelId(db, msg.channel.id);
-  if (!thread) return;
 
   if (!msg.author.bot && config.alwaysReply) {
     const author = await msg.guild?.members.fetch(msg.author.id);
