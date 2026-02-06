@@ -12,7 +12,7 @@ export default ({ db, commands, config }: ModuleProps) => {
         required: false,
       },
     ],
-    async (msg, args, _thread) => {
+    async (msg, args) => {
       const thread = await findOpenThreadByChannelId(db, msg.channelId);
       if (!thread && !args.id) {
         msg.reply(

@@ -4,12 +4,12 @@ import {
   type Client,
   Events,
   type Guild,
+  type Message,
   MessageType,
-  Message,
   type OmitPartialGroupDMChannel,
   type PartialMessage,
 } from "discord.js";
-import { Commands, createCommandManager } from "./commands";
+import { type Commands, createCommandManager } from "./commands";
 import config from "./config";
 import * as blocked from "./data/blocked";
 import { ACCIDENTAL_THREAD_MESSAGES } from "./data/constants";
@@ -17,10 +17,10 @@ import * as threads from "./data/threads";
 import { getAllOpenThreads } from "./data/threads";
 import { useDb } from "./db";
 import { createPluginProps, loadPlugins } from "./plugins";
+import { sendCloseNotification } from "./plugins/close";
+import { handleSnippet } from "./plugins/snippets";
 import { messageQueue } from "./queue";
 import * as utils from "./utils";
-import { handleSnippet } from "./plugins/snippets";
-import { sendCloseNotification } from "./plugins/close";
 
 const db = useDb();
 

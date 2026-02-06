@@ -1,11 +1,11 @@
-import { Collection, Message } from "discord.js";
+import { Collection, type Message } from "discord.js";
 import { parseArguments } from "knub-command-manager";
+import type { ModmailConfig } from "../config";
 import type { Snippet } from "../data/Snippet";
 import * as snippets from "../data/snippets";
+import type Thread from "../data/Thread";
 import type { ModuleProps } from "../plugins";
 import { disableCodeBlocks, postSystemMessageWithFallback } from "../utils";
-import type Thread from "../data/Thread";
-import { type ModmailConfig } from "../config";
 
 export default ({ config, commands }: ModuleProps) => {
   if (!config.allowSnippets) return;

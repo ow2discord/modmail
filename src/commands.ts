@@ -1,5 +1,5 @@
 import type { SQL } from "bun";
-import { type Client, type Message } from "discord.js";
+import type { Client, Message } from "discord.js";
 import {
   CommandManager,
   defaultParameterTypes,
@@ -203,7 +203,7 @@ export class Commands {
       this.aliasMap.set(originalCmd, new Set());
     }
 
-    this.aliasMap.get(originalCmd)!.add(alias);
+    this.aliasMap.get(originalCmd)?.add(alias);
   }
 
   private getAliases(
@@ -212,7 +212,7 @@ export class Commands {
   ): string[] {
     const triggerKey = trigger.toString();
     const aliases = this.aliasMap.has(triggerKey)
-      ? [...this.aliasMap.get(triggerKey)!]
+      ? [...(this.aliasMap.get(triggerKey) || [])]
       : [];
 
     if (commandConfig.aliases && Array.isArray(commandConfig.aliases)) {
