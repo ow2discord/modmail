@@ -76,10 +76,10 @@ export default ({ config, commands, db }: ModuleProps) => {
         silentClose = true;
       }
 
-      if (opts.length > 0) {
+      let delayArgs = opts.filter((s) => s !== "silent" && s !== "s");
+      if (delayArgs.length > 0) {
         try {
           const delay = await getDelayFromArgs(opts);
-          console.log(delay);
 
           if (delay !== null) {
             await thread.scheduleClose(delay, msg.author, silentClose);

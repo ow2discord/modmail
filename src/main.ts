@@ -310,11 +310,10 @@ async function handleInboxServerMessage(
       // Thread-specific command
       await commands.handleCommand(msg, "thread");
       thread.saveCommandMessageToLogs(msg);
-    } else {
-      // Inbox server command (not in a thread)
-      await commands.handleCommand(msg, "inbox");
     }
 
+    // Inbox server command (not in a thread)
+    await commands.handleCommand(msg, "inbox");
     await commands.handleCommand(msg, "global");
     return;
   }
