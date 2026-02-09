@@ -159,7 +159,7 @@ export async function createNewThreadForUser(
       { guild: Guild; member: GuildMember }
     >();
 
-    let serverJoin: Date | null = null;
+    const serverJoin: Date | null = null;
 
     for (const guild of mainGuilds) {
       try {
@@ -534,7 +534,7 @@ export type ThreadMessageStats = {
 
 export async function getThreadMessageStats(
   db: SQL,
-  thread_id: String,
+  thread_id: string,
 ): Promise<ThreadMessageStats | null> {
   const result = await db<
     Array<{ message_type: ThreadMessageType; msg_count: number }>

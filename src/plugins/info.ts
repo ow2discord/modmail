@@ -1,21 +1,8 @@
-import {
-  type DiscordAPIError,
-  EmbedBuilder,
-  type Guild,
-  type GuildMember,
-  type HexColorString,
-} from "discord.js";
+import type { DiscordAPIError, Guild, GuildMember } from "discord.js";
 import type { ModuleProps } from "../plugins";
-import { Colours, Emoji, Spacing } from "../style";
 import { getMainGuilds } from "../utils";
-import { getRegisteredUsername } from "../data/Registration";
-import {
-  getThreadMessageStats,
-  getThreadStaffReplyCounts,
-  getUserThreadNumber,
-} from "../data/threads";
 
-export default ({ commands, bot, db }: ModuleProps) => {
+export default ({ commands, bot }: ModuleProps) => {
   commands.addInboxThreadCommand(
     "header",
     "",

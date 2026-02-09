@@ -24,6 +24,7 @@ import {
   type User,
 } from "discord.js";
 import humanizeDuration from "humanize-duration";
+import { v4 } from "uuid";
 import bot from "../bot";
 import config from "../config";
 import { callAfterNewMessageReceivedHooks } from "../hooks/afterNewMessageReceived";
@@ -41,6 +42,7 @@ import {
 } from "../style";
 import {
   chunkMessageLines,
+  getInboxGuild,
   getSelfUrl,
   messageContentIsWithinMaxLength,
 } from "../utils";
@@ -51,6 +53,7 @@ import { ThreadMessageType, ThreadStatus } from "./constants";
 import { getModeratorThreadDisplayRoleName } from "./displayRoles";
 import { getLogUrl, type LogStorageTypes } from "./logs";
 import { findNotesByUserId } from "./notes";
+import { getRegisteredUsername, getStaffUsername } from "./Registration";
 import type { Snippet } from "./Snippet";
 import { all } from "./snippets";
 import ThreadMessage, { type ThreadMessageProps } from "./ThreadMessage";
@@ -63,8 +66,6 @@ import {
   getUserThreadNumber,
 } from "./threads";
 import { userGuildStatus } from "./users";
-import { getRegisteredUsername, getStaffUsername } from "./Registration";
-import { v4 } from "uuid";
 
 const escapeFormattingRegex = /[_`~*|]/g;
 
@@ -1377,7 +1378,8 @@ export class Thread {
     if (!user) return null;
 
     const author =
-      bot.users.cache.get(closer_id) || (await bot.users.fetch(closer_id));
+      getInboxGuild().members.cache.get(closer_id) ||
+      (await getInboxGuild().members.fetch(closer_id));
     if (!author) return null;
 
     const msgStats = await getThreadMessageStats(this.db, this.id);
@@ -1414,20 +1416,29 @@ export class Thread {
       `-# \`${user.id}\`${Spacing.Doublespace}•${Spacing.Doublespace}[(View log)](${await this.logUrl()})`,
     );
     embed.setColor(Colours.BanRed as HexColorString);
+    const roleEmoji = (() => {
+      const roleNames = author.roles.cache.map((r) => r.name.toLowerCase());
+      if (roleNames.includes("admin")) return Emoji.Roles.Admin;
+
+      if (roleNames.includes("trainee")) return Emoji.Roles.Admin;
+
+      return Emoji.Roles.Moderator;
+    })();
+
     embed.addFields([
       {
         name: "Closed By",
-        value: `-# ${Emoji.Roles.Moderator} ${(await getRegisteredUsername(this.db, author.id)) || author.username}`,
-        inline: true,
-      },
-      {
-        name: `Participants`,
-        value: `-# ${staffReplies.length > 0 ? staffReplies.join(", ") : "None"}`,
+        value: `-# ${roleEmoji} ${(await getRegisteredUsername(this.db, author.id)) || author.user.username}`,
         inline: true,
       },
       {
         name: "Total Messages",
         value: `-# **${msgStats.received}** Received, **${msgStats.replies}** Replies, **${msgStats.internal}** Internal`,
+        inline: true,
+      },
+      {
+        name: `Participants`,
+        value: `-# ${staffReplies.length > 0 ? staffReplies.join(", ") : "None"}`,
         inline: true,
       },
     ]);

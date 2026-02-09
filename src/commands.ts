@@ -11,12 +11,7 @@ import type Thread from "./data/Thread";
 import * as threads from "./data/threads";
 import { findOpenThreadByChannelId } from "./data/threads";
 import { useDb } from "./db";
-import {
-  getUserMention,
-  isStaff,
-  messageIsOnInboxServer,
-  postError,
-} from "./utils";
+import { getUserMention, isStaff, messageIsOnInboxServer } from "./utils";
 import { convertDelayStringToMS } from "./utils/time";
 
 const prefix = config.prefix || "!";

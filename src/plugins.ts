@@ -31,9 +31,9 @@ import reply from "./plugins/reply";
 import resetId from "./plugins/resetId";
 import roles from "./plugins/roles";
 import snippets from "./plugins/snippets";
+import staffRegistration from "./plugins/staffRegistration";
 import suspend from "./plugins/suspend";
 import typingProxy from "./plugins/typingProxy";
-import staffRegistration from "./plugins/staffRegistration";
 
 export type ModuleProps = {
   bot: Client;

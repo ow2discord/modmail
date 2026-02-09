@@ -2,11 +2,11 @@ import type { Embed } from "discord.js";
 import type { FC } from "hono/jsx";
 import { marked, type TokenizerAndRendererExtension } from "marked";
 import { ThreadMessageType } from "../data/constants";
+import { getRegisteredUsername } from "../data/Registration";
 import type { Thread as DBThread } from "../data/Thread";
 import type { ThreadMessage as DBThreadMessage } from "../data/ThreadMessage";
 import { findThreadLogByChannelID } from "../data/threads";
 import { useDb } from "../db";
-import { getRegisteredUsername, getStaffUsername } from "../data/Registration";
 
 const db = useDb();
 
@@ -236,8 +236,11 @@ const Embeds: FC<{ embeds: Array<Embed> }> = ({ embeds }) => {
   );
 };
 
-const OutgoingMessage: FC<{ msg: CollapsedThreadMessage }> = async ({ msg }) => {
-  const displayName = await getRegisteredUsername(db, msg.user_id) || msg.user_name
+const OutgoingMessage: FC<{ msg: CollapsedThreadMessage }> = async ({
+  msg,
+}) => {
+  const displayName =
+    (await getRegisteredUsername(db, msg.user_id)) || msg.user_name;
 
   return (
     <li class="msg-row" data-message-type="from-user">
@@ -320,8 +323,11 @@ const _ToUser: FC<{ msg: CollapsedThreadMessage }> = ({ msg }) => {
   );
 };
 
-const InternalMessage: FC<{ msg: CollapsedThreadMessage }> = async ({ msg }) => {
-  const displayName = await getRegisteredUsername(db, msg.user_id) || msg.user_name
+const InternalMessage: FC<{ msg: CollapsedThreadMessage }> = async ({
+  msg,
+}) => {
+  const displayName =
+    (await getRegisteredUsername(db, msg.user_id)) || msg.user_name;
 
   return (
     <li class="msg-row" data-message-type="internal">

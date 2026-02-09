@@ -53,11 +53,11 @@ export default ({ config, commands, db }: ModuleProps) => {
     "close",
     "[opts...]",
     async (msg, args, thread) => {
-      let closedBy = "Nobody";
+      let _closedBy = "Nobody";
 
       const hasCloseMessage = !!config.closeMessage;
       let silentClose = false;
-      let suppressSystemMessages = false;
+      const suppressSystemMessages = false;
 
       const opts = (args.opts as Array<string>) || [];
 
@@ -76,7 +76,7 @@ export default ({ config, commands, db }: ModuleProps) => {
         silentClose = true;
       }
 
-      let delayArgs = opts.filter((s) => s !== "silent" && s !== "s");
+      const delayArgs = opts.filter((s) => s !== "silent" && s !== "s");
       if (delayArgs.length > 0) {
         try {
           const delay = await getDelayFromArgs(opts);
@@ -111,7 +111,7 @@ export default ({ config, commands, db }: ModuleProps) => {
       }
 
       // Regular close
-      closedBy = config.useDisplaynames
+      _closedBy = config.useDisplaynames
         ? msg.author.globalName || msg.author.username
         : msg.author.username;
 

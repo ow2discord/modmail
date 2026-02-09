@@ -1,7 +1,7 @@
 import type { SQL } from "bun";
-import { GuildMember } from "discord.js";
-import { useDb } from "../db";
+import type { GuildMember } from "discord.js";
 import config from "../config";
+import { useDb } from "../db";
 
 type RegistrationProps = {
   discord_id: string;
