@@ -1412,10 +1412,6 @@ export class Thread {
       this.created_at,
     );
     embed.setTitle(`Thread #${threadNumber} with ${user.username} closed`);
-    embed.setDescription(
-      `-# \`${user.id}\`${Spacing.Doublespace}•${Spacing.Doublespace}[(View log)](${await this.logUrl()})`,
-    );
-    embed.setColor(Colours.BanRed as HexColorString);
     const roleEmoji = (() => {
       const roleNames = author.roles.cache.map((r) => r.name.toLowerCase());
       if (roleNames.includes("admin")) return Emoji.Roles.Admin;
@@ -1425,12 +1421,12 @@ export class Thread {
       return Emoji.Roles.Moderator;
     })();
 
+    embed.setDescription(
+      `-# \`${user.id}\`${Spacing.Doublespace}•${Spacing.Doublespace}Closed by ${roleEmoji} ${(await getRegisteredUsername(this.db, author.id)) || author.user.username}${Spacing.Doublespace}•${Spacing.Doublespace}[(View log)](${await this.logUrl()})\n`,
+    );
+    embed.setColor(Colours.BanRed as HexColorString);
+
     embed.addFields([
-      {
-        name: "Closed By",
-        value: `-# ${roleEmoji} ${(await getRegisteredUsername(this.db, author.id)) || author.user.username}`,
-        inline: true,
-      },
       {
         name: "Total Messages",
         value: `-# **${msgStats.received}** Received, **${msgStats.replies}** Replies, **${msgStats.internal}** Internal`,

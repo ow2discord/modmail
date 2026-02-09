@@ -98,7 +98,9 @@ export function postLog(
 }
 
 export function postError(channel: Channel, content: string, opts = {}) {
-  if (channel.isSendable()) {
+  console.error(`(ERROR) ${content}`);
+
+  if (channel && channel.isSendable()) {
     return channel.send({
       ...opts,
       content: `❌ ${content}`,
