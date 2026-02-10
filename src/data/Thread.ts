@@ -1416,7 +1416,7 @@ export class Thread {
       const roleNames = author.roles.cache.map((r) => r.name.toLowerCase());
       if (roleNames.includes("admin")) return Emoji.Roles.Admin;
 
-      if (roleNames.includes("trainee")) return Emoji.Roles.Admin;
+      if (roleNames.includes("trainee")) return Emoji.Roles.Trainee;
 
       return Emoji.Roles.Moderator;
     })();

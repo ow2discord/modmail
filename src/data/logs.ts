@@ -2,12 +2,12 @@ import { accessSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { AttachmentBuilder } from "discord.js";
 import config from "../config";
+import { useDb } from "../db";
 import { getSelfUrl } from "../utils";
 import { ThreadMessageType, ThreadStatus } from "./constants";
+import { getRegisteredUsername } from "./Registration";
 import type Thread from "./Thread";
 import ThreadMessage from "./ThreadMessage";
-import { getRegisteredUsername } from "./Registration";
-import { useDb } from "../db";
 
 interface LogStorageType {
   shouldSave?: (thread: Thread) => Promise<boolean> | boolean;
