@@ -7,7 +7,7 @@ export function useDb(): SQL {
   if (db) return db;
 
   db = new SQL({
-    adapter: "mysql",
+    adapter: "mariadb",
     hostname: config.secrets.database.host,
     port: config.secrets.database.port,
     database: config.secrets.database.database,
